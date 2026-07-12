@@ -4,6 +4,8 @@
  */
 
 #include "ItemUsageValue.h"
+#include <algorithm>
+#include <cmath>
 
 #include "AiFactory.h"
 #include "ChatHelper.h"
@@ -300,11 +302,18 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemTemplate const* itemProto, 
 
         ItemTemplate const* oldItemProto = oldItem->GetTemplate();
         float oldScore = calculator.CalculateItem(oldItemProto->ItemId, oldItem->GetInt32Value(ITEM_FIELD_RANDOM_PROPERTIES_ID));
-        if (oldItem)
+        // uint32 oldStatWeight = sRandomItemMgr.GetLiveStatWeight(bot, oldItemProto->ItemId);
+        if (itemScore || oldScore)
         {
-            // uint32 oldStatWeight = sRandomItemMgr.GetLiveStatWeight(bot, oldItemProto->ItemId);
-            if (itemScore || oldScore)
-                shouldEquipInSlot = itemScore > oldScore * sPlayerbotAIConfig.equipUpgradeThreshold;
+            float const standards = std::clamp(
+                botAI->GetAiObjectContext()->GetValue<float>("trait gear standards")->Get(), 0.90f, 1.30f);
+            float const attachment = std::clamp(
+                botAI->GetAiObjectContext()->GetValue<float>("trait gear attachment")->Get(), 1.0f, 1.12f);
+            int const steps = oldItemProto->Quality >= ITEM_QUALITY_EPIC ? 2 :
+                (oldItemProto->Quality == ITEM_QUALITY_RARE ? 1 : 0);
+            float const effective = std::max(
+                1.02f, sPlayerbotAIConfig.equipUpgradeThreshold * standards * std::pow(attachment, float(steps)));
+            shouldEquipInSlot = itemScore > oldScore * effective;
         }
 
         // Bigger quiver

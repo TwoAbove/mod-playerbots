@@ -54,6 +54,7 @@ public:
 
     void ApplyOverflowPenalty(Player* player);
     void ApplyWeightFinetune(Player* player);
+    void ApplyPersonalityBias(Player* player);
 
 private:
     Player* player_;

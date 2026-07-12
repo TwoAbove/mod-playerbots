@@ -5,8 +5,11 @@
 
 #include "StatsWeightCalculator.h"
 
+#include <algorithm>
+#include <cmath>
 #include <memory>
 
+#include "AiObjectContext.h"
 #include "AiFactory.h"
 #include "DBCStores.h"
 #include "ItemEnchantmentMgr.h"
@@ -14,6 +17,10 @@
 #include "ObjectMgr.h"
 #include "PlayerbotAI.h"
 #include "PlayerbotFactory.h"
+#include "Personality/BotPersonality.h"
+#include "Playerbots.h"
+#include "RandomPlayerbotMgr.h"
+#include "SpecStatExperience.h"
 #include "RandomItemMgr.h"
 #include "SharedDefines.h"
 #include "SpellAuraDefines.h"
@@ -61,6 +68,7 @@ StatsWeightCalculator::StatsWeightCalculator(Player* player) : player_(player)
     else
         type_ = CollectorType::RANGED;
     cls = player->getClass();
+    pvpSpec_ = sRandomPlayerbotMgr.IsSpecPvp(player->GetGUID().GetCounter(), cls);
     lvl = player->GetLevel();
     tab = AiFactory::GetPlayerSpecTab(player);
     collector_ = std::make_unique<StatsCollector>(type_, cls);
@@ -259,6 +267,54 @@ void StatsWeightCalculator::GenerateWeights(Player* player)
     GenerateBasicWeights(player);
     GenerateAdditionalWeights(player);
     ApplyWeightFinetune(player);
+    ApplyPersonalityBias(player);
+}
+
+void StatsWeightCalculator::ApplyPersonalityBias(Player* player)
+{
+    PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
+    if (!ai || !ai->GetAiObjectContext())
+        return;
+
+    AiObjectContext* context = ai->GetAiObjectContext();
+    char const* appetiteNames[] = {
+        "trait safety appetite", "trait reliability appetite", "trait volatility appetite", "trait tempo appetite",
+        "trait selfsufficiency appetite"
+    };
+    float lnApp[5];
+    for (uint8 i = 0; i < 5; ++i)
+    {
+        float const appetite = std::clamp(context->GetValue<float>(appetiteNames[i])->Get(), 0.75f, 1.3334f);
+        lnApp[i] = std::log(appetite);
+    }
+
+    float const modePvp = std::clamp(context->GetValue<float>("trait mode pvp")->Get(), 0.4f, 2.5f);
+    float const pvpWeight = pvpSpec_ ? 1.0f : std::min(0.8f,
+        0.5f * std::clamp((modePvp - 1.0f) / 1.5f, 0.0f, 1.0f) +
+        BotPersonality::PvpBiographyShare(player->GetGUID().GetCounter()));
+    bool const tankVariant = type_ == CollectorType::MELEE_TANK;
+
+    for (uint8 stat = 0; stat < STATS_TYPE_MAX; ++stat)
+    {
+        std::array<float, 5> memberships = BotPlayerbotsGear::GetStatExperience(cls, tab, tankVariant, stat);
+        if (stat == STATS_TYPE_RESILIENCE)
+            memberships[static_cast<uint8>(BotPlayerbotsGear::GearExperience::Safety)] += 0.5f * pvpWeight;
+        else if (stat == STATS_TYPE_STAMINA)
+            memberships[static_cast<uint8>(BotPlayerbotsGear::GearExperience::Safety)] += 0.15f * pvpWeight;
+
+        if (stat == STATS_TYPE_HIT)
+            memberships[static_cast<uint8>(BotPlayerbotsGear::GearExperience::Reliability)] *= 1.0f - 0.7f * pvpWeight;
+        else if (stat == STATS_TYPE_SPIRIT || stat == STATS_TYPE_MANA_REGENERATION || stat == STATS_TYPE_INTELLECT)
+            memberships[static_cast<uint8>(BotPlayerbotsGear::GearExperience::SelfSufficiency)] *=
+                1.0f - 0.6f * pvpWeight;
+
+        float exponent = 0.0f;
+        for (uint8 experience = 0; experience < 5; ++experience)
+            exponent += memberships[experience] * lnApp[experience];
+
+        // sum(m) <= 0.75+overlay, |ln(appetite)| <= ln(4/3): multiplier stays in ~[0.76, 1.31].
+        stats_weights_[stat] *= std::exp(exponent);
+    }
 }
 
 void StatsWeightCalculator::GenerateBasicWeights(Player* player)
