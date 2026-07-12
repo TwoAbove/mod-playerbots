@@ -69,6 +69,11 @@ PlayerbotSecurityLevel PlayerbotSecurity::LevelFor(Player* from, DenyReason* rea
             if (reason)
                 *reason = PLAYERBOT_DENY_NOT_YOURS;
 
+            // BG/arena team raids are auto-shared groups; teammates rate the unsecured verbs,
+            // not TALK, or battleground orders (mark, bg attack/defend) can never reach free bots.
+            if (botGroup->isBGGroup())
+                return PLAYERBOT_SECURITY_INVITE;
+
             return PLAYERBOT_SECURITY_TALK;
         }
 

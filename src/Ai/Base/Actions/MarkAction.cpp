@@ -63,6 +63,8 @@ uint8 ClassFromName(std::string const& name)
 
 bool MarkAction::Execute(Event event)
 {
+    Player* requester = event.getOwner();
+
     std::istringstream input(event.getParam());
     std::string icon;
     input >> icon;
@@ -71,15 +73,14 @@ bool MarkAction::Execute(Event event)
     int32 const iconIndex = RtiTargetValue::GetRtiIndex(icon);
     if (iconIndex < 0)
     {
-        botAI->TellMaster(
-            "Invalid raid target icon. Use star, circle, diamond, triangle, moon, square, cross, or skull.");
+        botAI->TellPlayer(requester, "Invalid raid target icon. Use star, circle, diamond, triangle, moon, square, cross, or skull.");
         return true;
     }
 
     Group* group = bot->GetGroup();
     if (!group)
     {
-        botAI->TellMaster("Cannot mark a target without a group.");
+        botAI->TellPlayer(requester, "Cannot mark a target without a group.");
         return true;
     }
 
@@ -98,9 +99,9 @@ bool MarkAction::Execute(Event event)
 
     if (description.empty() || description == "target")
     {
-        if (Player* master = botAI->GetMaster())
+        if (requester)
         {
-            Unit* selected = master->GetSelectedUnit();
+            Unit* selected = requester->GetSelectedUnit();
             if (selected && std::find(candidates.begin(), candidates.end(), selected->GetGUID()) != candidates.end())
                 target = selected;
         }
@@ -152,17 +153,17 @@ bool MarkAction::Execute(Event event)
 
     if (!target)
     {
-        botAI->TellMaster("No nearby enemy matched the mark target.");
+        botAI->TellPlayer(requester, "No nearby enemy matched the mark target.");
         return true;
     }
 
     group->SetTargetIcon(static_cast<uint8>(iconIndex), bot->GetGUID(), target->GetGUID());
 
-    std::ostringstream reply;
-    reply << "Marked " << target->GetName() << " with " << icon;
+    std::ostringstream marked;
+    marked << "Marked " << target->GetName() << " with " << icon;
     if (matches.size() > 1)
-        reply << " (nearest of " << matches.size() << " matches)";
-    reply << ".";
-    botAI->TellMaster(reply.str());
+        marked << " (nearest of " << matches.size() << " matches)";
+    marked << ".";
+    botAI->TellPlayer(requester, marked.str());
     return true;
 }

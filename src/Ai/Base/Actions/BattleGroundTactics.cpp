@@ -1575,13 +1575,19 @@ bool BGTactics::eyJumpDown()
 
 bool BgRoleAction::Execute(Event event)
 {
-    if (!event.getOwner() || event.getOwner() != GetMaster())
+    Player* requester = event.getOwner();
+    if (!requester)
         return false;
 
     Battleground* bg = bot->GetBattleground();
+    bool teammate = bg && !GET_PLAYERBOT_AI(requester) && requester->GetBattleground() == bg &&
+                    requester->GetBgTeamId() == bot->GetBgTeamId();
+    if (requester != GetMaster() && !teammate)
+        return false;
+
     if (!bg || bg->isArena())
     {
-        botAI->TellMaster("I am not in a battleground.");
+        botAI->TellPlayer(requester, "I am not in a battleground.");
         return false;
     }
 
@@ -1597,16 +1603,16 @@ bool BgRoleAction::Execute(Event event)
         case BATTLEGROUND_EY:
             break;
         case BATTLEGROUND_IC:
-            botAI->TellMaster("Isle of Conquest roles select attack lanes, not attack or defense.");
+            botAI->TellPlayer(requester, "Isle of Conquest roles select attack lanes, not attack or defense.");
             return false;
         default:
-            botAI->TellMaster("This battleground has no attack or defense role.");
+            botAI->TellPlayer(requester, "This battleground has no attack or defense role.");
             return false;
     }
 
     // This is intentionally unpinned: resetObjective may organically reroll the ordered role later.
     context->GetValue<uint32>("bg role")->Set(defend ? 0 : 9);
-    botAI->TellMaster(defend ? "Defending battleground objectives." : "Attacking battleground objectives.");
+    botAI->TellPlayer(requester, defend ? "Defending battleground objectives." : "Attacking battleground objectives.");
     return true;
 }
 

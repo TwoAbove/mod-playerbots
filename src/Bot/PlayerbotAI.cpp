@@ -932,6 +932,9 @@ bool PlayerbotAI::IsAllowedCommand(std::string const text)
         unsecuredCommands.insert("lfg");
         unsecuredCommands.insert("pvp stats");
         unsecuredCommands.insert("rpg status");
+        unsecuredCommands.insert("mark");
+        unsecuredCommands.insert("bg attack");
+        unsecuredCommands.insert("bg defend");
     }
 
     for (std::set<std::string>::iterator i = unsecuredCommands.begin(); i != unsecuredCommands.end(); ++i)
@@ -3070,6 +3073,15 @@ bool PlayerbotAI::TellMaster(std::string const text, PlayerbotSecurityLevel secu
         bot->HandleEmoteCommand(EMOTE_ONESHOT_TALK);
     }
 
+    return true;
+}
+
+bool PlayerbotAI::TellPlayer(Player* player, std::string const text)
+{
+    if (!player || player == master)
+        return TellMaster(text);
+
+    bot->Whisper(text, LANG_UNIVERSAL, player);
     return true;
 }
 
