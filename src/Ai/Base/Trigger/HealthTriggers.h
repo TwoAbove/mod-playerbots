@@ -6,8 +6,11 @@
 #ifndef PLAYERBOTS_HEALTHTRIGGERS_H
 #define PLAYERBOTS_HEALTHTRIGGERS_H
 
+#include <algorithm>
 #include <stdexcept>
 
+#include "AiObjectContext.h"
+#include "PlayerbotAI.h"
 #include "PlayerbotAIConfig.h"
 #include "Trigger.h"
 
@@ -60,9 +63,20 @@ class CriticalHealthTrigger : public LowHealthTrigger
 {
 public:
     CriticalHealthTrigger(PlayerbotAI* botAI)
-        : LowHealthTrigger(botAI, "critical health", sPlayerbotAIConfig.criticalHealth, 0)
+        : LowHealthTrigger(botAI, "critical health", sPlayerbotAIConfig.criticalHealth, 0),
+          caution(botAI->GetAiObjectContext()->GetValue<float>("trait caution"))
     {
     }
+
+    bool IsActive() override
+    {
+        float const value = GetValue();
+        float const threshold = std::clamp(sPlayerbotAIConfig.criticalHealth * caution->Get(), 0.0f, 100.0f);
+        return value < threshold && value >= minValue;
+    }
+
+private:
+    Value<float>* caution;
 };
 
 class MediumHealthTrigger : public LowHealthTrigger

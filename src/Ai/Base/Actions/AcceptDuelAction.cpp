@@ -5,6 +5,8 @@
 
 #include "AcceptDuelAction.h"
 
+#include <algorithm>
+
 #include "Event.h"
 #include "Playerbots.h"
 
@@ -17,9 +19,12 @@ bool AcceptDuelAction::Execute(Event event)
     ObjectGuid playerGuid;
     p >> playerGuid;
 
+    float const duelAcceptThreshold = std::clamp(
+        botAI->GetAiObjectContext()->GetValue<float>("trait duel accept")->Get(), 0.0f, 100.0f);
+
     // do not auto duel with low hp
     if ((!botAI->HasRealPlayerMaster() || (botAI->GetMaster() && botAI->GetMaster()->GetGUID() != playerGuid)) &&
-        AI_VALUE2(uint8, "health", "self target") < 90)
+        AI_VALUE2(uint8, "health", "self target") < duelAcceptThreshold)
     {
         WorldPacket packet(CMSG_DUEL_CANCELLED, 8);
         packet << flagGuid;

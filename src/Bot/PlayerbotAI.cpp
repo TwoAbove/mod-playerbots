@@ -5,6 +5,7 @@
 
 #include "PlayerbotAI.h"
 
+#include <algorithm>
 #include <cmath>
 #include <mutex>
 #include <sstream>
@@ -1255,7 +1256,17 @@ void PlayerbotAI::HandleBotOutgoingPacket(WorldPacket const& packet)
                     }
                     else
                     {
-                        if (isFromFreeBot && urand(0, 20))
+                        float const reply = std::clamp(
+                            GetAiObjectContext()->GetValue<float>("trait reply")->Get(), 0.3f, 3.0f);
+                        auto replyDieMaximum = [reply](uint32 stockMaximum) -> uint32 {
+                            if (reply == 1.0f)
+                                return stockMaximum;
+
+                            return static_cast<uint32>(
+                                std::max<long>(0, std::lround((stockMaximum + 1.0f) / reply) - 1));
+                        };
+
+                        if (isFromFreeBot && urand(0, replyDieMaximum(20)))
                             return;
 
                         // if (msgtype == CHAT_MSG_GUILD && (!sPlayerbotAIConfig.guildRepliesRate || urand(1, 100) >=
@@ -1263,12 +1274,12 @@ void PlayerbotAI::HandleBotOutgoingPacket(WorldPacket const& packet)
 
                         if (!isFromFreeBot)
                         {
-                            if (!isMentioned && urand(0, 4))
+                            if (!isMentioned && urand(0, replyDieMaximum(4)))
                                 return;
                         }
                         else
                         {
-                            if (urand(0, 20 + 10 * isMentioned))
+                            if (urand(0, replyDieMaximum(20 + 10 * isMentioned)))
                                 return;
                         }
                     }
@@ -4517,7 +4528,10 @@ enum GrouperType
 
 GrouperType PlayerbotAI::GetGrouperType()
 {
-    uint32 grouperNumber = GetFixedBotNumber(100);
+    float const grouper = std::clamp(
+        GetAiObjectContext()->GetValue<float>("trait grouper")->Get(), 0.0f, 1.0f);
+    uint32 const grouperNumber =
+        grouper == 0.5f ? GetFixedBotNumber(100) : static_cast<uint32>(grouper * 100.0f);
 
     if (grouperNumber < 20 && !HasRealPlayerMaster())
         return GrouperType::SOLO;
@@ -4539,7 +4553,10 @@ GrouperType PlayerbotAI::GetGrouperType()
 
 GuilderType PlayerbotAI::GetGuilderType()
 {
-    uint32 grouperNumber = GetFixedBotNumber(100);
+    float const grouper = std::clamp(
+        GetAiObjectContext()->GetValue<float>("trait grouper")->Get(), 0.0f, 1.0f);
+    uint32 const grouperNumber =
+        grouper == 0.5f ? GetFixedBotNumber(100) : static_cast<uint32>(grouper * 100.0f);
 
     if (grouperNumber < 20 && !HasRealPlayerMaster())
         return GuilderType::SOLO;

@@ -5,6 +5,8 @@
 
 #include "AiFactory.h"
 
+#include <algorithm>
+
 #include "BattlegroundMgr.h"
 #include "DKAiObjectContext.h"
 #include "DruidAiObjectContext.h"
@@ -17,6 +19,7 @@
 #include "PlayerbotAI.h"
 #include "PlayerbotAIConfig.h"
 #include "Playerbots.h"
+#include "Random.h"
 #include "PriestAiObjectContext.h"
 #include "RogueAiObjectContext.h"
 #include "ShamanAiObjectContext.h"
@@ -452,6 +455,13 @@ void AiFactory::AddDefaultCombatStrategies(Player* player, PlayerbotAI* const fa
             }
         }
     }
+
+    if (PlayerbotAI::IsTank(player, true) && !sPlayerbotAIConfig.tankCombatStrategies.empty())
+        engine->ChangeStrategy(sPlayerbotAIConfig.tankCombatStrategies);
+    if (PlayerbotAI::IsHeal(player, true) && !sPlayerbotAIConfig.healCombatStrategies.empty())
+        engine->ChangeStrategy(sPlayerbotAIConfig.healCombatStrategies);
+    if (PlayerbotAI::IsDps(player, true) && !sPlayerbotAIConfig.dpsCombatStrategies.empty())
+        engine->ChangeStrategy(sPlayerbotAIConfig.dpsCombatStrategies);
     if (sRandomPlayerbotMgr.IsRandomBot(player))
         engine->ChangeStrategy(sPlayerbotAIConfig.randomBotCombatStrategies);
     else
@@ -588,12 +598,21 @@ void AiFactory::AddDefaultNonCombatStrategies(Player* player, PlayerbotAI* const
     if (sPlayerbotAIConfig.autoSaveMana && PlayerbotAI::IsHeal(player, true))
         nonCombatEngine->addStrategy("save mana", false);
 
+    if (PlayerbotAI::IsTank(player, true) && !sPlayerbotAIConfig.tankNonCombatStrategies.empty())
+        nonCombatEngine->ChangeStrategy(sPlayerbotAIConfig.tankNonCombatStrategies);
+    if (PlayerbotAI::IsHeal(player, true) && !sPlayerbotAIConfig.healNonCombatStrategies.empty())
+        nonCombatEngine->ChangeStrategy(sPlayerbotAIConfig.healNonCombatStrategies);
+    if (PlayerbotAI::IsDps(player, true) && !sPlayerbotAIConfig.dpsNonCombatStrategies.empty())
+        nonCombatEngine->ChangeStrategy(sPlayerbotAIConfig.dpsNonCombatStrategies);
+
     if ((sRandomPlayerbotMgr.IsRandomBot(player)) && !player->InBattleground())
     {
         Player* master = facade->GetMaster();
 
-        // let 25% of free bots start duels.
-        if (!urand(0, 3))
+        // Neutral keeps the stock urand roll bit-for-bit.
+        float const duelStartChance = std::clamp(
+            facade->GetAiObjectContext()->GetValue<float>("trait duel start")->Get(), 0.0f, 1.0f);
+        if (duelStartChance == 0.25f ? !urand(0, 3) : roll_chance_f(duelStartChance * 100.0f))
             nonCombatEngine->addStrategy("start duel", false);
 
         if (sPlayerbotAIConfig.randomBotJoinLfg)

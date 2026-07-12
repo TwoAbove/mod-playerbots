@@ -3,6 +3,8 @@
  * and/or modify it under version 3 of the License, or (at your option), any later version.
  */
 
+#include <algorithm>
+
 #include "GreetAction.h"
 
 #include "Event.h"
@@ -19,6 +21,15 @@ bool GreetAction::Execute(Event /*event*/)
     Player* player = dynamic_cast<Player*>(botAI->GetUnit(guid));
     if (!player)
         return false;
+    float const warmth = std::clamp(
+        botAI->GetAiObjectContext()->GetValue<float>("trait warmth")->Get(), 0.0f, 1.0f);
+    if (warmth < 0.5f)
+    {
+        GuidSet& alreadySeenPlayers =
+            botAI->GetAiObjectContext()->GetValue<GuidSet&>("already seen players")->Get();
+        alreadySeenPlayers.insert(guid);
+        return true;
+    }
 
     if (!bot->HasInArc(CAST_ANGLE_IN_FRONT, player, sPlayerbotAIConfig.sightDistance))
         bot->SetFacingToObject(player);

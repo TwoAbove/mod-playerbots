@@ -5,6 +5,7 @@
 
 #include "GenericTriggers.h"
 
+#include <algorithm>
 #include <string>
 
 #include "GenericBuffUtils.h"
@@ -112,7 +113,10 @@ bool HasAggroTrigger::IsActive() { return AI_VALUE2(bool, "has aggro", "current 
 
 bool PanicTrigger::IsActive()
 {
-    return AI_VALUE2(uint8, "health", "self target") < sPlayerbotAIConfig.criticalHealth &&
+    float const criticalHealth = std::clamp(sPlayerbotAIConfig.criticalHealth *
+                                                botAI->GetAiObjectContext()->GetValue<float>("trait caution")->Get(),
+                                            0.0f, 100.0f);
+    return AI_VALUE2(uint8, "health", "self target") < criticalHealth &&
            (!AI_VALUE2(bool, "has mana", "self target") ||
             AI_VALUE2(uint8, "mana", "self target") < sPlayerbotAIConfig.lowMana);
 }
@@ -154,7 +158,9 @@ bool OutNumberedTrigger::IsActive()
             friendPower += std::max(200 + 20 * dLevel, dLevel * 200);
     }
 
-    return friendPower < foePower;
+    float const bravado = std::clamp(
+        botAI->GetAiObjectContext()->GetValue<float>("trait bravado")->Get(), 0.7f, 1.5f);
+    return friendPower * bravado < foePower;
 }
 
 bool BuffTrigger::IsActive()

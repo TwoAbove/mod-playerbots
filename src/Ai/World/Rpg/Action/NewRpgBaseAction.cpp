@@ -1,5 +1,8 @@
 #include "NewRpgBaseAction.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
 #include "Creature.h"
@@ -1070,7 +1073,41 @@ bool NewRpgBaseAction::SelectRandomFlightTaxiNode(uint32& flightMasterEntry, Wor
 
 bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateStatus)
 {
-    std::vector<NewRpgStatus> availableStatus;
+    auto effectiveWeight = [this](NewRpgStatus status) -> uint32 {
+        uint32 const baseWeight = sPlayerbotAIConfig.RpgStatusProbWeight[status];
+        char const* dialName = nullptr;
+        switch (status)
+        {
+            case RPG_GO_GRIND:
+                dialName = "trait mode grind";
+                break;
+            case RPG_DO_QUEST:
+                dialName = "trait mode quest";
+                break;
+            case RPG_OUTDOOR_PVP:
+                dialName = "trait mode pvp";
+                break;
+            case RPG_REST:
+            case RPG_GO_CAMP:
+                dialName = "trait mode rest";
+                break;
+            case RPG_WANDER_RANDOM:
+            case RPG_WANDER_NPC:
+                dialName = "trait mode wander";
+                break;
+            default:
+                return baseWeight;
+        }
+
+        float const dial = std::clamp(
+            botAI->GetAiObjectContext()->GetValue<float>(dialName)->Get(), 0.4f, 2.5f);
+        if (dial == 1.0f)
+            return baseWeight;
+
+        return static_cast<uint32>(std::lround(baseWeight * dial));
+    };
+
+    std::vector<std::pair<NewRpgStatus, uint32>> availableStatus;
     uint32 probSum = 0;
     for (NewRpgStatus status : candidateStatus)
     {
@@ -1079,8 +1116,9 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
 
         if (CheckRpgStatusAvailable(status))
         {
-            availableStatus.push_back(status);
-            probSum += sPlayerbotAIConfig.RpgStatusProbWeight[status];
+            uint32 const weight = effectiveWeight(status);
+            availableStatus.emplace_back(status, weight);
+            probSum += weight;
         }
     }
     // Safety check. Default to "rest" if all RPG weights = 0
@@ -1093,9 +1131,9 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
     uint32 rand = urand(1, probSum);
     uint32 accumulate = 0;
     NewRpgStatus chosenStatus = RPG_STATUS_END;
-    for (NewRpgStatus status : availableStatus)
+    for (auto const& [status, weight] : availableStatus)
     {
-        accumulate += sPlayerbotAIConfig.RpgStatusProbWeight[status];
+        accumulate += weight;
         if (accumulate >= rand)
         {
             chosenStatus = status;

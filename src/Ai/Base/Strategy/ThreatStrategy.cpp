@@ -5,6 +5,8 @@
 
 #include "ThreatStrategy.h"
 
+#include <algorithm>
+
 #include "GenericSpellActions.h"
 #include "Map.h"
 #include "Playerbots.h"
@@ -22,15 +24,19 @@ float ThreatMultiplier::GetValue(Action* action)
     if (!AI_VALUE(bool, "group"))
         return 1.0f;
 
+    float const threatCare = botAI->GetAiObjectContext()->GetValue<float>("trait threat care")->Get();
+    float const aoeThreatThreshold = std::clamp(50.0f * threatCare, 0.0f, 100.0f);
+    float const targetThreatThreshold = std::clamp(80.0f * threatCare, 0.0f, 100.0f);
+
     if (action->getThreatType() == Action::ActionThreatType::Aoe)
     {
         uint8 threat = AI_VALUE2(uint8, "threat", "aoe");
-        if (threat >= 50)
+        if (threat >= aoeThreatThreshold)
             return 0.0f;
     }
 
     uint8 threat = AI_VALUE2(uint8, "threat", "current target");
-    if (threat >= 80)
+    if (threat >= targetThreatThreshold)
         return 0.0f;
 
     return 1.0f;

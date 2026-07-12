@@ -6,6 +6,10 @@
 #ifndef PLAYERBOTS_TRIGGERCONTEXT_H
 #define PLAYERBOTS_TRIGGERCONTEXT_H
 
+#include <algorithm>
+#include <cmath>
+
+#include "AiObjectContext.h"
 #include "CureTriggers.h"
 #include "FishingTriggers.h"
 #include "GenericTriggers.h"
@@ -15,6 +19,7 @@
 #include "NamedObjectContext.h"
 #include "NewRpgStrategy.h"
 #include "NewRpgTriggers.h"
+#include "PlayerbotAI.h"
 #include "PvpTriggers.h"
 #include "PullTriggers.h"
 #include "RpgTriggers.h"
@@ -24,6 +29,27 @@
 #include "WaitForAttackTriggers.h"
 
 class PlayerbotAI;
+
+class ExpressiveRandomTrigger : public RandomTrigger
+{
+public:
+    ExpressiveRandomTrigger(PlayerbotAI* botAI, std::string const name, int32 stockProbability)
+        : RandomTrigger(botAI, name, stockProbability), stockProbability(stockProbability) {}
+
+    bool IsActive() override
+    {
+        float const expressive = std::clamp(
+            botAI->GetAiObjectContext()->GetValue<float>("trait expressive")->Get(), 0.3f, 3.0f);
+        probability = expressive == 1.0f
+                          ? stockProbability
+                          : std::max<int32>(
+                                1, static_cast<int32>(std::lround(stockProbability / expressive)));
+        return RandomTrigger::IsActive();
+    }
+
+private:
+    int32 const stockProbability;
+};
 
 class TriggerContext : public NamedObjectContext<Trigger>
 {
@@ -41,6 +67,8 @@ public:
         creators["seldom"] = &TriggerContext::seldom;
         creators["often"] = &TriggerContext::often;
         creators["very often"] = &TriggerContext::very_often;
+        creators["expressive seldom"] = &TriggerContext::expressive_seldom;
+        creators["expressive often"] = &TriggerContext::expressive_often;
 
         creators["target critical health"] = &TriggerContext::TargetCriticalHealth;
 
@@ -338,6 +366,15 @@ private:
     static Trigger* not_dps_aoe_target_active(PlayerbotAI* botAI) { return new NotDpsAoeTargetActiveTrigger(botAI); }
     static Trigger* has_nearest_adds(PlayerbotAI* botAI) { return new HasNearestAddsTrigger(botAI); }
     static Trigger* enemy_player_near(PlayerbotAI* botAI) { return new EnemyPlayerNear(botAI); }
+    static Trigger* expressive_seldom(PlayerbotAI* botAI)
+    {
+        return new ExpressiveRandomTrigger(botAI, "expressive seldom", 300);
+    }
+    static Trigger* expressive_often(PlayerbotAI* botAI)
+    {
+        return new ExpressiveRandomTrigger(botAI, "expressive often", 5);
+    }
+
     static Trigger* Random(PlayerbotAI* botAI) { return new RandomTrigger(botAI, "random", 20); }
     static Trigger* seldom(PlayerbotAI* botAI) { return new RandomTrigger(botAI, "seldom", 300); }
     static Trigger* often(PlayerbotAI* botAI) { return new RandomTrigger(botAI, "often", 5); }

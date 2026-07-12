@@ -5,6 +5,8 @@
 
 #include "ConserveManaStrategy.h"
 
+#include <algorithm>
+
 #include "GenericSpellActions.h"
 #include "LastSpellCastValue.h"
 #include "PlayerbotAIConfig.h"
@@ -92,7 +94,11 @@
 float HealerAutoSaveManaMultiplier::GetValue(Action* action)
 {
     uint8 mana = bot->GetPowerPct(Powers::POWER_MANA);
-    if (mana > sPlayerbotAIConfig.saveManaThreshold)
+    float const saveManaThreshold =
+        std::clamp(sPlayerbotAIConfig.saveManaThreshold *
+                       botAI->GetAiObjectContext()->GetValue<float>("trait thrift")->Get(),
+                   0.0f, 100.0f);
+    if (mana > saveManaThreshold)
         return 1.0f;
     CastHealingSpellAction* healingAction = dynamic_cast<CastHealingSpellAction*>(action);
 
