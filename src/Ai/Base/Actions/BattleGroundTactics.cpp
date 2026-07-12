@@ -50,6 +50,15 @@ uint32 SkewDefenseThreshold(AiObjectContext* context, uint32 stockThreshold, uin
     uint32 hi = stockThreshold >= outcomes ? outcomes : outcomes - 1;
     return std::clamp<uint32>(std::lround(stockThreshold * skew), lo, hi);
 }
+
+// GetRandomPoint grounds z itself (UpdateGroundPositionZ); the copies this replaces re-checked
+// the map height and assigned the VMAP failure sentinel as z when the lookup failed.
+void SetRandomAround(Player* bot, Position const& center, float radius, uint32 mapId, PositionInfo& pos)
+{
+    float x, y, z;
+    bot->GetRandomPoint(center, radius, x, y, z);
+    pos.Set(x, y, z, mapId);
+}
 }
 
 // common bg positions
@@ -2026,17 +2035,7 @@ bool BGTactics::selectObjective(bool reset)
                 {
                     if (GameObject* go = bg->GetBGObject(BG_AV_OBJECT_FLAG_N_SNOWFALL_GRAVE))
                     {
-                        Position objPos = go->GetPosition();
-                        float rx, ry, rz;
-                        bot->GetRandomPoint(objPos, frand(5.0f, 15.0f), rx, ry, rz);
-                        if (Map* map = bot->GetMap())
-                        {
-                            float groundZ = map->GetHeight(rx, ry, rz);
-                            if (groundZ == VMAP_INVALID_HEIGHT_VALUE)
-                                rz = groundZ;
-                        }
-
-                        pos.Set(rx, ry, rz, go->GetMapId());
+                        SetRandomAround(bot, go->GetPosition(), frand(5.0f, 15.0f), go->GetMapId(), pos);
                         posMap["bg objective"] = pos;
                         BgObjective = go;
                     }
@@ -2144,17 +2143,7 @@ bool BGTactics::selectObjective(bool reset)
                     // Fallback: move to boss wait position
                     const Position& waitPos = (team == TEAM_HORDE) ? AV_BOSS_WAIT_H : AV_BOSS_WAIT_A;
 
-                    float rx, ry, rz;
-                    bot->GetRandomPoint(waitPos, 5.0f, rx, ry, rz);
-
-                    if (Map* map = bot->GetMap())
-                    {
-                        float groundZ = map->GetHeight(rx, ry, rz);
-                        if (groundZ == VMAP_INVALID_HEIGHT_VALUE)
-                            rz = groundZ;
-                    }
-
-                    pos.Set(rx, ry, rz, bot->GetMapId());
+                    SetRandomAround(bot, waitPos, 5.0f, bot->GetMapId(), pos);
                     posMap["bg objective"] = pos;
 
                     uint32 bossId = (team == TEAM_HORDE) ? AV_CREATURE_A_BOSS : AV_CREATURE_H_BOSS;
@@ -2181,23 +2170,13 @@ bool BGTactics::selectObjective(bool reset)
                             linkedNodeId = nodeId;
                 }
 
-                float rx, ry, rz;
                 if (linkedNodeId && AVNodeMovementTargets.count(*linkedNodeId))
                 {
                     const AVNodePositionData& data = AVNodeMovementTargets[*linkedNodeId];
-                    bot->GetRandomPoint(data.pos, frand(-data.maxRadius, data.maxRadius), rx, ry, rz);
+                    SetRandomAround(bot, data.pos, frand(-data.maxRadius, data.maxRadius), BgObjective->GetMapId(), pos);
                 }
                 else
-                    bot->GetRandomPoint(objPos, frand(-2.0f, 2.0f), rx, ry, rz);
-
-                if (Map* map = bot->GetMap())
-                {
-                    float groundZ = map->GetHeight(rx, ry, rz);
-                    if (groundZ == VMAP_INVALID_HEIGHT_VALUE)
-                        rz = groundZ;
-                }
-
-                pos.Set(rx, ry, rz, BgObjective->GetMapId());
+                    SetRandomAround(bot, objPos, frand(-2.0f, 2.0f), BgObjective->GetMapId(), pos);
                 posMap["bg objective"] = pos;
                 return true;
             }
@@ -2209,22 +2188,16 @@ bool BGTactics::selectObjective(bool reset)
             Position target;
             TeamId team = bot->GetTeamId();
 
-            // Utility to safely relocate a position with optional random radius
-            auto SetSafePos = [&](Position const& origin, float radius = 0.0f) -> void
+            auto SetSafePos = [&](Position const& origin, float radius = 0.0f)
             {
-                float rx, ry, rz;
                 if (radius > 0.0f)
                 {
+                    float rx, ry, rz;
                     bot->GetRandomPoint(origin, radius, rx, ry, rz);
-                    if (rz == VMAP_INVALID_HEIGHT_VALUE)
-                        target.Relocate(rx, ry, rz);
-                    else
-                        target.Relocate(origin);
+                    target.Relocate(rx, ry, rz);
                 }
                 else
-                {
                     target.Relocate(origin);
-                }
             };
 
             // Check if the bot is carrying the flag
@@ -2444,15 +2417,7 @@ bool BGTactics::selectObjective(bool reset)
 
                 // Camp enemy GY fallback
                 Position camp = (team == TEAM_ALLIANCE) ? AB_GY_CAMPING_HORDE : AB_GY_CAMPING_ALLIANCE;
-                float rx, ry, rz;
-                bot->GetRandomPoint(camp, 10.0f, rx, ry, rz);
-                if (Map* map = bot->GetMap())
-                {
-                    float groundZ = map->GetHeight(rx, ry, rz);
-                    if (groundZ == VMAP_INVALID_HEIGHT_VALUE)
-                        rz = groundZ;
-                }
-                pos.Set(rx, ry, rz, bot->GetMapId());
+                SetRandomAround(bot, camp, 10.0f, bot->GetMapId(), pos);
                 posMap["bg objective"] = pos;
                 break;
             }
@@ -2533,18 +2498,7 @@ bool BGTactics::selectObjective(bool reset)
             // --- Final move ---
             if (BgObjective)
             {
-                float rx, ry, rz;
-                Position objPos = BgObjective->GetPosition();
-                bot->GetRandomPoint(objPos, frand(5.0f, 15.0f), rx, ry, rz);
-
-                if (Map* map = bot->GetMap())
-                {
-                    float groundZ = map->GetHeight(rx, ry, rz);
-                    if (groundZ == VMAP_INVALID_HEIGHT_VALUE)
-                        rz = groundZ;
-                }
-
-                pos.Set(rx, ry, rz, BgObjective->GetMapId());
+                SetRandomAround(bot, BgObjective->GetPosition(), frand(5.0f, 15.0f), BgObjective->GetMapId(), pos);
                 posMap["bg objective"] = pos;
             }
 
@@ -2627,18 +2581,7 @@ bool BGTactics::selectObjective(bool reset)
 
                 if (bestNodeId != 0 && EY_NodePositions.contains(bestNodeId))
                 {
-                    const Position& targetPos = EY_NodePositions[bestNodeId];
-                    float rx, ry, rz;
-                    bot->GetRandomPoint(targetPos, 5.0f, rx, ry, rz);
-
-                    if (Map* map = bot->GetMap())
-                    {
-                        float groundZ = map->GetHeight(rx, ry, rz);
-                        if (groundZ == VMAP_INVALID_HEIGHT_VALUE)
-                            rz = groundZ;
-                    }
-
-                    pos.Set(rx, ry, rz, bot->GetMapId());
+                    SetRandomAround(bot, EY_NodePositions[bestNodeId], 5.0f, bot->GetMapId(), pos);
 
                     // Check AreaTrigger activation range
                     if (bestTrigger && bot->IsWithinDist3d(pos.x, pos.y, pos.z, INTERACTION_DISTANCE))
@@ -2656,17 +2599,7 @@ bool BGTactics::selectObjective(bool reset)
                     const Position& fallback = (team == TEAM_ALLIANCE) ? EY_FLAG_RETURN_POS_RETREAT_ALLIANCE
                                                                        : EY_FLAG_RETURN_POS_RETREAT_HORDE;
 
-                    float rx, ry, rz;
-                    bot->GetRandomPoint(fallback, 5.0f, rx, ry, rz);
-
-                    if (Map* map = bot->GetMap())
-                    {
-                        float groundZ = map->GetHeight(rx, ry, rz);
-                        if (groundZ == VMAP_INVALID_HEIGHT_VALUE)
-                            rz = groundZ;
-                    }
-
-                    pos.Set(rx, ry, rz, bot->GetMapId());
+                    SetRandomAround(bot, fallback, 5.0f, bot->GetMapId(), pos);
                     foundObjective = true;
                 }
             }
@@ -2917,307 +2850,127 @@ bool BGTactics::selectObjective(bool reset)
                 return false;
 
             /* TACTICS */
-            if (bot->GetTeamId() == TEAM_HORDE)  // HORDE
+            bool const horde = bot->GetTeamId() == TEAM_HORDE;
+            uint32 const keepPortcullis = horde ? BG_IC_GO_DOODAD_PORTCULLISACTIVE02 : BG_IC_GO_HORDE_KEEP_PORTCULLIS;
+            uint8 const enemyGraveyard = horde ? NODE_TYPE_GRAVEYARD_A : NODE_TYPE_GRAVEYARD_H;
+            ICNodeState const weControl = horde ? NODE_STATE_CONTROLLED_H : NODE_STATE_CONTROLLED_A;
+            ICNodeState const weContest = horde ? NODE_STATE_CONFLICT_H : NODE_STATE_CONFLICT_A;
+            uint32 const enemyBoss = horde ? BG_IC_NPC_HIGH_COMMANDER_HALFORD_WYRMBANE : BG_IC_NPC_OVERLORD_AGMAR;
+            uint32 const keepBanner = horde ? BG_IC_GO_ALLIANCE_BANNER : BG_IC_GO_HORDE_BANNER;
+            uint32 const enemyGate = horde ? BG_IC_GO_ALLIANCE_GATE_3 : BG_IC_GO_HORDE_GATE_1;
+            uint32 const siegeEngine = horde ? NPC_SIEGE_ENGINE_H : NPC_SIEGE_ENGINE_A;
+            uint8 const sideNode = horde ? NODE_TYPE_REFINERY : NODE_TYPE_QUARRY;
+            uint32 const sideBanner = horde ? BG_IC_GO_REFINERY_BANNER : BG_IC_GO_QUARRY_BANNER;
+            Position const& gateAttackPos = horde ? IC_GATE_ATTACK_POS_HORDE : IC_GATE_ATTACK_POS_ALLIANCE;
+
+            auto holdNearGate = [&]()
             {
-                bool gateOpen = false;
-                if (GameObject* pGO = bg->GetBGObject(BG_IC_GO_DOODAD_PORTCULLISACTIVE02))
-                {
-                    if (pGO->isSpawned() && pGO->getLootState() == GO_ACTIVATED)
-                    {
-                        gateOpen = true;
-                        PositionInfo siegePos = context->GetValue<PositionMap&>("position")->Get()["bg siege"];
-                        siegePos.Reset();
-                        posMap["bg siege"] = siegePos;
-                    }
-                }
-                if (gateOpen && !controlsVehicle &&
-                    isleOfConquestBG->GetICNodePoint(NODE_TYPE_GRAVEYARD_A).nodeState ==
-                        NODE_STATE_CONTROLLED_H)  // target enemy boss
-                {
-                    if (Creature* enemyBoss = bg->GetBGCreature(BG_IC_NPC_HIGH_COMMANDER_HALFORD_WYRMBANE))
-                    {
-                        if (enemyBoss->IsVisible())
-                        {
-                            BgObjective = enemyBoss;
-                            // LOG_INFO("playerbots", "bot={} attack boss", bot->GetName());
-                        }
-                    }
-                }
+                // stay put if already close (stops them shifting around between the random spots)
+                if (bot->GetDistance(gateAttackPos) < 8.0f)
+                    pos.Set(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ(), bot->GetMapId());
+                else
+                    pos.Set(gateAttackPos.GetPositionX() + frand(-5.0f, +5.0f),
+                            gateAttackPos.GetPositionY() + frand(-5.0f, +5.0f),
+                            gateAttackPos.GetPositionZ(), bot->GetMapId());
+                posMap["bg objective"] = pos;
+            };
 
-                if (!BgObjective && gateOpen && !controlsVehicle)
+            bool gateOpen = false;
+            if (GameObject* pGO = bg->GetBGObject(keepPortcullis))
+            {
+                if (pGO->isSpawned() && pGO->getLootState() == GO_ACTIVATED)
                 {
-                    if (GameObject* pGO = bg->GetBGObject(BG_IC_GO_ALLIANCE_BANNER))  // capture flag within keep
-                    {
-                        BgObjective = pGO;
-                        // LOG_INFO("playerbots", "bot={} attack keep", bot->GetName());
-                    }
-                }
-
-                if (!BgObjective && !gateOpen && controlsVehicle)  // attack gates
-                {
-                    // TODO: check for free vehicles
-                    if (GameObject* gate = bg->GetBGObject(BG_IC_GO_ALLIANCE_GATE_3))
-                    {
-                        if (vehicleId == NPC_SIEGE_ENGINE_H)  // target gate directly if siege engine
-                        {
-                            BgObjective = gate;
-                            // LOG_INFO("playerbots", "bot={} (in siege-engine) attack gate", bot->GetName());
-                        }
-                        else  // target gate directly at range if other vehicle
-                        {
-                            // just make bot stay where it is if already close
-                            // (stops them shifting around between the random spots)
-                            if (bot->GetDistance(IC_GATE_ATTACK_POS_HORDE) < 8.0f)
-                                pos.Set(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ(), bot->GetMapId());
-                            else
-                                pos.Set(IC_GATE_ATTACK_POS_HORDE.GetPositionX() + frand(-5.0f, +5.0f),
-                                        IC_GATE_ATTACK_POS_HORDE.GetPositionY() + frand(-5.0f, +5.0f),
-                                        IC_GATE_ATTACK_POS_HORDE.GetPositionZ(), bot->GetMapId());
-                            posMap["bg objective"] = pos;
-                            // set siege position
-                            PositionInfo siegePos = context->GetValue<PositionMap&>("position")->Get()["bg siege"];
-                            siegePos.Set(gate->GetPositionX(), gate->GetPositionY(), gate->GetPositionZ(),
-                                         bot->GetMapId());
-                            posMap["bg siege"] = siegePos;
-                            // LOG_INFO("playerbots", "bot={} (in vehicle={}) attack gate", bot->GetName(), vehicleId);
-                            return true;
-                        }
-                    }
-                }
-
-                // If gates arent down and not in vehicle, split tasks
-                if (!BgObjective && !controlsVehicle && role == 9)  // Capture Side base
-                {
-                    // Capture Refinery
-                    ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(NODE_TYPE_REFINERY);
-                    if (nodePoint.nodeState != NODE_STATE_CONFLICT_H && nodePoint.nodeState != NODE_STATE_CONTROLLED_H)
-                    {
-                        BgObjective = bg->GetBGObject(BG_IC_GO_REFINERY_BANNER);
-                        // LOG_INFO("playerbots", "bot={} attack refinery", bot->GetName());
-                    }
-                }
-
-                if (!BgObjective && !controlsVehicle && role < 3)  // Capture Docks
-                {
-                    ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(NODE_TYPE_DOCKS);
-                    if (nodePoint.nodeState != NODE_STATE_CONFLICT_H && nodePoint.nodeState != NODE_STATE_CONTROLLED_H)
-                    {
-                        if (GameObject* pGO = bg->GetBGObject(BG_IC_GO_DOCKS_BANNER))
-                        {
-                            BgObjective = pGO;
-                            // LOG_INFO("playerbots", "bot={} attack docks", bot->GetName());
-                        }
-                    }
-                }
-                if (!BgObjective && !controlsVehicle && role < 6)  // Capture Hangar
-                {
-                    ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(NODE_TYPE_HANGAR);
-                    if (nodePoint.nodeState != NODE_STATE_CONFLICT_H && nodePoint.nodeState != NODE_STATE_CONTROLLED_H)
-                    {
-                        if (GameObject* pGO = bg->GetBGObject(BG_IC_GO_HANGAR_BANNER))
-                        {
-                            BgObjective = pGO;
-                            // LOG_INFO("playerbots", "bot={} attack hangar", bot->GetName());
-                        }
-                    }
-                }
-                if (!BgObjective && !controlsVehicle)  // Capture Workshop
-                {
-                    ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(NODE_TYPE_WORKSHOP);
-                    if (nodePoint.nodeState != NODE_STATE_CONFLICT_H && nodePoint.nodeState != NODE_STATE_CONTROLLED_H)
-                    {
-                        if (GameObject* pGO = bg->GetBGObject(BG_IC_GO_WORKSHOP_BANNER))
-                        {
-                            BgObjective = pGO;
-                            // LOG_INFO("playerbots", "bot={} attack workshop", bot->GetName());
-                        }
-                    }
-                }
-                if (!BgObjective)  // Guard point that's not fully capped (also gets them in place to board vehicle)
-                {
-                    uint32 len = end(IC_AttackObjectives) - begin(IC_AttackObjectives);
-                    for (uint32 i = 0; i < len; i++)
-                    {
-                        auto const& objective =
-                            IC_AttackObjectives[(i + role) %
-                                                len];  // use role to determine which objective checked first
-                        if (isleOfConquestBG->GetICNodePoint(objective.first).nodeState != NODE_STATE_CONTROLLED_H)
-                        {
-                            if (GameObject* pGO = bg->GetBGObject(objective.second))
-                            {
-                                BgObjective = pGO;
-                                // LOG_INFO("playerbots", "bot={} guard point while it captures", bot->GetName());
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (!BgObjective)  // guard vehicles as they seige
-                {
-                    // just make bot stay where it is if already close
-                    // (stops them shifting around between the random spots)
-                    if (bot->GetDistance(IC_GATE_ATTACK_POS_HORDE) < 8.0f)
-                        pos.Set(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ(), bot->GetMapId());
-                    else
-                        pos.Set(IC_GATE_ATTACK_POS_HORDE.GetPositionX() + frand(-5.0f, +5.0f),
-                                IC_GATE_ATTACK_POS_HORDE.GetPositionY() + frand(-5.0f, +5.0f),
-                                IC_GATE_ATTACK_POS_HORDE.GetPositionZ(), bot->GetMapId());
-                    posMap["bg objective"] = pos;
-                    // LOG_INFO("playerbots", "bot={} guard vehicles as they attack gate", bot->GetName());
-                    return true;
+                    gateOpen = true;
+                    PositionInfo siegePos = context->GetValue<PositionMap&>("position")->Get()["bg siege"];
+                    siegePos.Reset();
+                    posMap["bg siege"] = siegePos;
                 }
             }
 
-            if (bot->GetTeamId() == TEAM_ALLIANCE)  // ALLIANCE
+            if (gateOpen && !controlsVehicle &&
+                isleOfConquestBG->GetICNodePoint(enemyGraveyard).nodeState == weControl)  // target enemy boss
             {
-                bool gateOpen = false;
-                if (GameObject* pGO = bg->GetBGObject(BG_IC_GO_HORDE_KEEP_PORTCULLIS))
+                if (Creature* boss = bg->GetBGCreature(enemyBoss))
+                    if (boss->IsVisible())
+                        BgObjective = boss;
+            }
+
+            if (!BgObjective && gateOpen && !controlsVehicle)  // capture flag within keep
+            {
+                if (GameObject* pGO = bg->GetBGObject(keepBanner))
+                    BgObjective = pGO;
+            }
+
+            if (!BgObjective && !gateOpen && controlsVehicle)  // attack gates
+            {
+                // TODO: check for free vehicles
+                if (GameObject* gate = bg->GetBGObject(enemyGate))
                 {
-                    if (pGO->isSpawned() && pGO->getLootState() == GO_ACTIVATED)
+                    if (vehicleId == siegeEngine)  // target gate directly if siege engine
+                        BgObjective = gate;
+                    else  // other vehicles hold at range
                     {
-                        gateOpen = true;
+                        holdNearGate();
                         PositionInfo siegePos = context->GetValue<PositionMap&>("position")->Get()["bg siege"];
-                        siegePos.Reset();
+                        siegePos.Set(gate->GetPositionX(), gate->GetPositionY(), gate->GetPositionZ(),
+                                     bot->GetMapId());
                         posMap["bg siege"] = siegePos;
+                        return true;
                     }
                 }
+            }
 
-                if (gateOpen && !controlsVehicle &&
-                    isleOfConquestBG->GetICNodePoint(NODE_TYPE_GRAVEYARD_H).nodeState ==
-                        NODE_STATE_CONTROLLED_A)  // target enemy boss
-                {
-                    if (Creature* enemyBoss = bg->GetBGCreature(BG_IC_NPC_OVERLORD_AGMAR))
-                    {
-                        if (enemyBoss->IsVisible())
-                        {
-                            BgObjective = enemyBoss;
-                            // LOG_INFO("playerbots", "bot={} attack boss", bot->GetName());
-                        }
-                    }
-                }
+            // If gates arent down and not in vehicle, split tasks
+            if (!BgObjective && !controlsVehicle && role == 9)  // Capture side base
+            {
+                ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(sideNode);
+                if (nodePoint.nodeState != weContest && nodePoint.nodeState != weControl)
+                    BgObjective = bg->GetBGObject(sideBanner);
+            }
 
-                if (!BgObjective && gateOpen && !controlsVehicle)
-                {
-                    if (GameObject* pGO = bg->GetBGObject(BG_IC_GO_HORDE_BANNER))  // capture flag within keep
-                    {
-                        BgObjective = pGO;
-                        // LOG_INFO("playerbots", "bot={} attack keep", bot->GetName());
-                    }
-                }
+            if (!BgObjective && !controlsVehicle && role < 3)  // Capture Docks
+            {
+                ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(NODE_TYPE_DOCKS);
+                if (nodePoint.nodeState != weContest && nodePoint.nodeState != weControl)
+                    BgObjective = bg->GetBGObject(BG_IC_GO_DOCKS_BANNER);
+            }
 
-                if (!BgObjective && !gateOpen && controlsVehicle)  // attack gates
-                {
-                    // TODO: check for free vehicles
-                    if (GameObject* gate = bg->GetBGObject(BG_IC_GO_HORDE_GATE_1))
-                    {
-                        if (vehicleId == NPC_SIEGE_ENGINE_A)  // target gate directly if siege engine
-                        {
-                            BgObjective = gate;
-                            // LOG_INFO("playerbots", "bot={} (in siege-engine) attack gate", bot->GetName());
-                        }
-                        else  // target gate directly at range if other vehicle
-                        {
-                            // just make bot stay where it is if already close
-                            // (stops them shifting around between the random spots)
-                            if (bot->GetDistance(IC_GATE_ATTACK_POS_ALLIANCE) < 8.0f)
-                                pos.Set(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ(), bot->GetMapId());
-                            else
-                                pos.Set(IC_GATE_ATTACK_POS_ALLIANCE.GetPositionX() + frand(-5.0f, +5.0f),
-                                        IC_GATE_ATTACK_POS_ALLIANCE.GetPositionY() + frand(-5.0f, +5.0f),
-                                        IC_GATE_ATTACK_POS_ALLIANCE.GetPositionZ(), bot->GetMapId());
-                            posMap["bg objective"] = pos;
-                            // set siege position
-                            PositionInfo siegePos = context->GetValue<PositionMap&>("position")->Get()["bg siege"];
-                            siegePos.Set(gate->GetPositionX(), gate->GetPositionY(), gate->GetPositionZ(),
-                                         bot->GetMapId());
-                            posMap["bg siege"] = siegePos;
-                            // LOG_INFO("playerbots", "bot={} (in vehicle={}) attack gate", bot->GetName(), vehicleId);
-                            return true;
-                        }
-                    }
-                }
+            if (!BgObjective && !controlsVehicle && role < 6)  // Capture Hangar
+            {
+                ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(NODE_TYPE_HANGAR);
+                if (nodePoint.nodeState != weContest && nodePoint.nodeState != weControl)
+                    BgObjective = bg->GetBGObject(BG_IC_GO_HANGAR_BANNER);
+            }
 
-                // If gates arent down and not in vehicle, split tasks
-                if (!BgObjective && !controlsVehicle && role == 9)  // Capture Side base
-                {
-                    // Capture Refinery
-                    ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(NODE_TYPE_QUARRY);
-                    if (nodePoint.nodeState != NODE_STATE_CONFLICT_A && nodePoint.nodeState != NODE_STATE_CONTROLLED_A)
-                    {
-                        BgObjective = bg->GetBGObject(BG_IC_GO_QUARRY_BANNER);
-                        // LOG_INFO("playerbots", "bot={} attack quarry", bot->GetName());
-                    }
-                }
+            if (!BgObjective && !controlsVehicle)  // Capture Workshop
+            {
+                ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(NODE_TYPE_WORKSHOP);
+                if (nodePoint.nodeState != weContest && nodePoint.nodeState != weControl)
+                    BgObjective = bg->GetBGObject(BG_IC_GO_WORKSHOP_BANNER);
+            }
 
-                if (!BgObjective && !controlsVehicle && role < 3)  // Capture Docks
+            if (!BgObjective)  // Guard point that's not fully capped (also gets them in place to board vehicle)
+            {
+                uint32 len = end(IC_AttackObjectives) - begin(IC_AttackObjectives);
+                for (uint32 i = 0; i < len; i++)
                 {
-                    ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(NODE_TYPE_DOCKS);
-                    if (nodePoint.nodeState != NODE_STATE_CONFLICT_A && nodePoint.nodeState != NODE_STATE_CONTROLLED_A)
+                    // use role to determine which objective checked first
+                    auto const& objective = IC_AttackObjectives[(i + role) % len];
+                    if (isleOfConquestBG->GetICNodePoint(objective.first).nodeState != weControl)
                     {
-                        if (GameObject* pGO = bg->GetBGObject(BG_IC_GO_DOCKS_BANNER))
+                        if (GameObject* pGO = bg->GetBGObject(objective.second))
                         {
                             BgObjective = pGO;
-                            // LOG_INFO("playerbots", "bot={} attack docks", bot->GetName());
+                            break;
                         }
                     }
                 }
-                if (!BgObjective && !controlsVehicle && role < 6)  // Capture Hangar
-                {
-                    ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(NODE_TYPE_HANGAR);
-                    if (nodePoint.nodeState != NODE_STATE_CONFLICT_A && nodePoint.nodeState != NODE_STATE_CONTROLLED_A)
-                    {
-                        if (GameObject* pGO = bg->GetBGObject(BG_IC_GO_HANGAR_BANNER))
-                        {
-                            BgObjective = pGO;
-                            // LOG_INFO("playerbots", "bot={} attack hangar", bot->GetName());
-                        }
-                    }
-                }
-                if (!BgObjective && !controlsVehicle)  // Capture Workshop
-                {
-                    ICNodePoint const& nodePoint = isleOfConquestBG->GetICNodePoint(NODE_TYPE_WORKSHOP);
-                    if (nodePoint.nodeState != NODE_STATE_CONFLICT_A && nodePoint.nodeState != NODE_STATE_CONTROLLED_A)
-                    {
-                        if (GameObject* pGO = bg->GetBGObject(BG_IC_GO_WORKSHOP_BANNER))
-                        {
-                            BgObjective = pGO;
-                            // LOG_INFO("playerbots", "bot={} attack workshop", bot->GetName());
-                        }
-                    }
-                }
-                if (!BgObjective)  // Guard point that's not fully capped (also gets them in place to board vehicle)
-                {
-                    uint32 len = end(IC_AttackObjectives) - begin(IC_AttackObjectives);
-                    for (uint32 i = 0; i < len; i++)
-                    {
-                        auto const& objective =
-                            IC_AttackObjectives[(i + role) %
-                                                len];  // use role to determine which objective checked first
-                        if (isleOfConquestBG->GetICNodePoint(objective.first).nodeState != NODE_STATE_CONTROLLED_H)
-                        {
-                            if (GameObject* pGO = bg->GetBGObject(objective.second))
-                            {
-                                BgObjective = pGO;
-                                // LOG_INFO("playerbots", "bot={} guard point while it captures", bot->GetName());
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (!BgObjective)  // guard vehicles as they seige
-                {
-                    // just make bot stay where it is if already close
-                    // (stops them shifting around between the random spots)
-                    if (bot->GetDistance(IC_GATE_ATTACK_POS_ALLIANCE) < 8.0f)
-                        pos.Set(bot->GetPositionX(), bot->GetPositionY(), bot->GetPositionZ(), bot->GetMapId());
-                    else
-                        pos.Set(IC_GATE_ATTACK_POS_ALLIANCE.GetPositionX() + frand(-5.0f, +5.0f),
-                                IC_GATE_ATTACK_POS_ALLIANCE.GetPositionY() + frand(-5.0f, +5.0f),
-                                IC_GATE_ATTACK_POS_ALLIANCE.GetPositionZ(), bot->GetMapId());
-                    posMap["bg objective"] = pos;
-                    // LOG_INFO("playerbots", "bot={} guard vehicles as they attack gate", bot->GetName());
-                    return true;
-                }
+            }
+
+            if (!BgObjective)  // guard vehicles as they siege
+            {
+                holdNearGate();
+                return true;
             }
 
             if (BgObjective)
