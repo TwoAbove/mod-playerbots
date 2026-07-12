@@ -23,7 +23,6 @@
 #include "DatabaseEnv.h"
 #include "DatabaseLoader.h"
 #include "GroupScript.h"
-#include "GuildTaskMgr.h"
 #include "PlayerScript.h"
 #include "Personality/BotPersonality.h"
 #include "PlayerbotAIConfig.h"
@@ -507,12 +506,6 @@ public:
         }
 
         return nonBotFound;
-    }
-
-    void OnPlayerbotCheckKillTask(Player* player, Unit* victim) override
-    {
-        if (player)
-            GuildTaskMgr::instance().CheckKillTask(player, victim);
     }
 
     void OnPlayerbotCheckPetitionAccount(Player* player, bool& found) override

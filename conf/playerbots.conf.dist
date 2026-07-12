@@ -2330,9 +2330,6 @@ AiPlayerbot.AllowedLogFiles = ""
 # Deprecated Settings (yet still in use)     #
 ##############################################
 
-# Guild Task system
-AiPlayerbot.EnableGuildTasks = 0
-
 # Chance bot chooses RPG (Teleport to random camp for their level) instead of grinding
 AiPlayerbot.RandomBotRpgChance = 0.20
 
@@ -2346,24 +2343,6 @@ AiPlayerbot.MinRandomBotsPriceChangeInterval = 7200
 AiPlayerbot.MaxRandomBotsPriceChangeInterval = 172800
 AiPlayerbot.MinRandomBotChangeStrategyTime = 180
 AiPlayerbot.MaxRandomBotChangeStrategyTime = 720
-
-# How often tasks are changed
-AiPlayerbot.MinGuildTaskChangeTime = 172800
-AiPlayerbot.MaxGuildTaskChangeTime = 432000
-
-# Mail spam interval
-AiPlayerbot.MinGuildTaskAdvertisementTime = 300
-AiPlayerbot.MaxGuildTaskAdvertisementTime = 28800
-
-# Delay before reward is sent
-AiPlayerbot.MinGuildTaskRewardTime = 300
-AiPlayerbot.MaxGuildTaskRewardTime = 3600
-
-# Cleanup of guild tasks interval
-AiPlayerbot.GuildTaskAdvertCleanupTime = 300
-
-# Specify max distance between victim and bot when creating guild kill task
-AiPlayerbot.GuildTaskKillTaskDistance = 200
 
 # Distance margin for facade calculations
 AiPlayerbot.TargetPosRecalcDistance = 0.1

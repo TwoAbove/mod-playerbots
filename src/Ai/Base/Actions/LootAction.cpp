@@ -8,7 +8,6 @@
 #include "ChatHelper.h"
 #include "Event.h"
 #include "GuildMgr.h"
-#include "GuildTaskMgr.h"
 #include "ItemUsageValue.h"
 #include "LootObjectStack.h"
 #include "LootStrategyValue.h"
@@ -431,11 +430,6 @@ bool StoreLootAction::Execute(Event event)
             uint32 price = itemcount * proto->BuyPrice * sRandomPlayerbotMgr.GetBuyMultiplier(bot) + gold;
             if (price)
                 sRandomPlayerbotMgr.AddTradeDiscount(bot, master, price);
-
-            if (Group* group = bot->GetGroup())
-                for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-                    if (ref->GetSource() != bot)
-                        GuildTaskMgr::instance().CheckItemTask(itemid, itemcount, ref->GetSource(), bot);
         }
 
         WorldPacket* packet = new WorldPacket(CMSG_AUTOSTORE_LOOT_ITEM, 1);

@@ -6,7 +6,6 @@
 #include "CheckMailAction.h"
 
 #include "Event.h"
-#include "GuildTaskMgr.h"
 #include "PlayerbotAIConfig.h"
 #include "PlayerbotAI.h"
 
@@ -81,24 +80,18 @@ void CheckMailAction::ProcessMail(Mail* mail, Player* owner, CharacterDatabaseTr
         if (!item)
             continue;
 
-        if (!GuildTaskMgr::instance().CheckItemTask(i->item_template, item->GetCount(), owner, bot, true))
-        {
-            std::ostringstream body;
-            body << "Hello, " << owner->GetName() << ",\n";
-            body << "\n";
-            body << "Here are the item(s) you've sent me by mistake";
-            body << "\n";
-            body << "Thanks,\n";
-            body << bot->GetName() << "\n";
+        std::ostringstream body;
+        body << "Hello, " << owner->GetName() << ",\n";
+        body << "\n";
+        body << "Here are the item(s) you've sent me by mistake";
+        body << "\n";
+        body << "Thanks,\n";
+        body << bot->GetName() << "\n";
 
-            MailDraft draft("Item(s) you've sent me", body.str());
-            draft.AddItem(item);
-            bot->RemoveMItem(i->item_guid);
-            draft.SendMailTo(trans, MailReceiver(owner), MailSender(bot));
-            return;
-        }
-
+        MailDraft draft("Item(s) you've sent me", body.str());
+        draft.AddItem(item);
         bot->RemoveMItem(i->item_guid);
-        item->DestroyForPlayer(bot);
+        draft.SendMailTo(trans, MailReceiver(owner), MailSender(bot));
+        return;
     }
 }

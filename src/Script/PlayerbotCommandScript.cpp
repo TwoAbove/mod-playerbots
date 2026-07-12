@@ -15,7 +15,6 @@
 
 #include "BattleGroundTactics.h"
 #include "Chat.h"
-#include "GuildTaskMgr.h"
 #include "PerfMonitor.h"
 #include "PlayerbotMgr.h"
 #include "Personality/BotPersonality.h"
@@ -44,7 +43,6 @@ public:
 
         static ChatCommandTable playerbotsCommandTable = {
             {"bot", HandlePlayerbotCommand, SEC_PLAYER, Console::No},
-            {"gtask", HandleGuildTaskCommand, SEC_GAMEMASTER, Console::Yes},
             {"pmon", HandlePerfMonCommand, SEC_GAMEMASTER, Console::Yes},
             {"rndbot", HandleRandomPlayerbotCommand, SEC_GAMEMASTER, Console::Yes},
             {"who", HandlePersonalityWhoCommand, SEC_GAMEMASTER, Console::Yes},
@@ -77,11 +75,6 @@ public:
             return false;
         }
         return BotPersonality::HandleWho(handler, args);
-    }
-
-    static bool HandleGuildTaskCommand(ChatHandler* handler, char const* args)
-    {
-        return GuildTaskMgr::HandleConsoleCommand(handler, args);
     }
 
     static bool HandlePerfMonCommand(ChatHandler* /*handler*/, char const* args)

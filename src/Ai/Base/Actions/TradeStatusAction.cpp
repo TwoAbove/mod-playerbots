@@ -7,7 +7,6 @@
 
 #include "CraftValue.h"
 #include "Event.h"
-#include "GuildTaskMgr.h"
 #include "ItemUsageValue.h"
 #include "ItemVisitors.h"
 #include "PlayerbotMgr.h"
@@ -98,8 +97,6 @@ bool TradeStatusAction::Execute(Event event)
                 {
                     craftData.AddObtained(itemId, count);
                 }
-
-                GuildTaskMgr::instance().CheckItemTask(itemId, count, trader, bot);
             }
 
             for (std::map<uint32, uint32>::iterator i = takenItemIds.begin(); i != takenItemIds.end(); ++i)

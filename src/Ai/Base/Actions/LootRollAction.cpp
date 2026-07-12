@@ -123,7 +123,6 @@ RollVote LootRollAction::CalculateRollVote(ItemTemplate const* proto, ItemUsage 
     {
         case ITEM_USAGE_EQUIP:
         case ITEM_USAGE_REPLACE:
-        case ITEM_USAGE_GUILD_TASK:
         case ITEM_USAGE_BAD_EQUIP:
             needVote = NEED;
             break;

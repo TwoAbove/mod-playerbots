@@ -9,7 +9,6 @@
 
 #include "AiFactory.h"
 #include "ChatHelper.h"
-#include "GuildTaskMgr.h"
 #include "Item.h"
 #include "LootObjectStack.h"
 #include "PlayerbotAIConfig.h"
@@ -92,9 +91,6 @@ ItemUsage ItemUsageValue::Calculate()
             }
         }
     }
-
-    if (bot->GetGuildId() && GuildTaskMgr::instance().IsGuildTaskItem(itemId, bot->GetGuildId()))
-        return ITEM_USAGE_GUILD_TASK;
 
     ItemUsage equip = QueryItemUsageForEquip(proto, randomPropertyId);
     if (equip != ITEM_USAGE_NONE)

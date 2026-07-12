@@ -298,13 +298,6 @@ public:
     bool randomBotPreQuests;
     bool botSendMailEnabled;
 
-    bool guildTaskEnabled;
-    uint32 minGuildTaskChangeTime, maxGuildTaskChangeTime;
-    uint32 minGuildTaskAdvertisementTime, maxGuildTaskAdvertisementTime;
-    uint32 minGuildTaskRewardTime, maxGuildTaskRewardTime;
-    uint32 guildTaskAdvertCleanupTime;
-    uint32 guildTaskKillTaskDistance;
-
     uint32 iterationsPerTick;
 
     std::mutex m_logMtx;
