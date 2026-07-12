@@ -5502,47 +5502,35 @@ Item* PlayerbotAI::FindOilFor(Item* weapon) const
     return oil;
 }
 
+namespace
+{
+template <typename Visit>
+void ForEachInventoryItem(Player* bot, Visit visit)
+{
+    for (int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
+        if (Bag* bag = (Bag*)bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+            for (uint32 j = 0; j < bag->GetBagSize(); ++j)
+                if (Item* item = bag->GetItemByPos(j))
+                    visit(item);
+
+    for (int i = INVENTORY_SLOT_ITEM_START; i < INVENTORY_SLOT_ITEM_END; ++i)
+        if (Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+            visit(item);
+
+    for (int i = KEYRING_SLOT_START; i < KEYRING_SLOT_END; ++i)
+        if (Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+            visit(item);
+}
+}
+
 std::vector<Item*> PlayerbotAI::GetInventoryAndEquippedItems()
 {
     std::vector<Item*> items;
-
-    for (int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
-    {
-        if (Bag* pBag = (Bag*)bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            for (uint32 j = 0; j < pBag->GetBagSize(); ++j)
-            {
-                if (Item* pItem = pBag->GetItemByPos(j))
-                {
-                    items.push_back(pItem);
-                }
-            }
-        }
-    }
-
-    for (int i = INVENTORY_SLOT_ITEM_START; i < INVENTORY_SLOT_ITEM_END; ++i)
-    {
-        if (Item* pItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            items.push_back(pItem);
-        }
-    }
-
-    for (int i = KEYRING_SLOT_START; i < KEYRING_SLOT_END; ++i)
-    {
-        if (Item* pItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            items.push_back(pItem);
-        }
-    }
+    ForEachInventoryItem(bot, [&](Item* item) { items.push_back(item); });
 
     for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; slot++)
-    {
-        if (Item* pItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
-        {
-            items.push_back(pItem);
-        }
-    }
+        if (Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+            items.push_back(item);
 
     return items;
 }
@@ -5550,128 +5538,24 @@ std::vector<Item*> PlayerbotAI::GetInventoryAndEquippedItems()
 std::vector<Item*> PlayerbotAI::GetInventoryItems()
 {
     std::vector<Item*> items;
-
-    for (int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
-    {
-        if (Bag* pBag = (Bag*)bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            for (uint32 j = 0; j < pBag->GetBagSize(); ++j)
-            {
-                if (Item* pItem = pBag->GetItemByPos(j))
-                {
-                    items.push_back(pItem);
-                }
-            }
-        }
-    }
-
-    for (int i = INVENTORY_SLOT_ITEM_START; i < INVENTORY_SLOT_ITEM_END; ++i)
-    {
-        if (Item* pItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            items.push_back(pItem);
-        }
-    }
-
-    for (int i = KEYRING_SLOT_START; i < KEYRING_SLOT_END; ++i)
-    {
-        if (Item* pItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            items.push_back(pItem);
-        }
-    }
-
+    ForEachInventoryItem(bot, [&](Item* item) { items.push_back(item); });
     return items;
 }
 
 uint32 PlayerbotAI::GetInventoryItemsCountWithId(uint32 itemId)
 {
     uint32 count = 0;
-
-    for (int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
+    ForEachInventoryItem(bot, [&](Item* item)
     {
-        if (Bag* pBag = (Bag*)bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            for (uint32 j = 0; j < pBag->GetBagSize(); ++j)
-            {
-                if (Item* pItem = pBag->GetItemByPos(j))
-                {
-                    if (pItem->GetTemplate()->ItemId == itemId)
-                    {
-                        count += pItem->GetCount();
-                    }
-                }
-            }
-        }
-    }
-
-    for (int i = INVENTORY_SLOT_ITEM_START; i < INVENTORY_SLOT_ITEM_END; ++i)
-    {
-        if (Item* pItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            if (pItem->GetTemplate()->ItemId == itemId)
-            {
-                count += pItem->GetCount();
-            }
-        }
-    }
-
-    for (int i = KEYRING_SLOT_START; i < KEYRING_SLOT_END; ++i)
-    {
-        if (Item* pItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            if (pItem->GetTemplate()->ItemId == itemId)
-            {
-                count += pItem->GetCount();
-            }
-        }
-    }
-
+        if (item->GetTemplate()->ItemId == itemId)
+            count += item->GetCount();
+    });
     return count;
 }
 
 bool PlayerbotAI::HasItemInInventory(uint32 itemId)
 {
-    for (int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
-    {
-        if (Bag* pBag = (Bag*)bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            for (uint32 j = 0; j < pBag->GetBagSize(); ++j)
-            {
-                if (Item* pItem = pBag->GetItemByPos(j))
-                {
-                    if (pItem->GetTemplate()->ItemId == itemId)
-                    {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-
-    for (int i = INVENTORY_SLOT_ITEM_START; i < INVENTORY_SLOT_ITEM_END; ++i)
-    {
-        if (Item* pItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            if (pItem->GetTemplate()->ItemId == itemId)
-            {
-                return true;
-            }
-        }
-    }
-
-    for (int i = KEYRING_SLOT_START; i < KEYRING_SLOT_END; ++i)
-    {
-        if (Item* pItem = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-        {
-            if (pItem->GetTemplate()->ItemId == itemId)
-            {
-                return true;
-            }
-        }
-    }
-
-    return false;
+    return GetInventoryItemsCountWithId(itemId) > 0;
 }
 
 std::vector<std::pair<const Quest*, uint32>> PlayerbotAI::GetCurrentQuestsRequiringItemId(uint32 itemId)
