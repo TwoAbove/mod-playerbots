@@ -5,7 +5,10 @@
 
 #include "PlayerbotFactory.h"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <random>
 #include <utility>
 
 #include "AccountMgr.h"
@@ -26,6 +29,8 @@
 #include "PetDefines.h"
 #include "Player.h"
 #include "PlayerbotAI.h"
+#include "Personality/BotPersonality.h"
+#include "Personality/PersonalityMatrix.h"
 #include "PlayerbotAIConfig.h"
 #include "PlayerbotRepository.h"
 #include "PlayerbotGuildMgr.h"
@@ -109,6 +114,48 @@ constexpr uint32 SPELL_IMPROVED_HOWL_OF_TERROR = 30057;
 constexpr uint32 SPELL_NEMESIS = 63123;
 constexpr uint32 SPELL_INTENSITY = 18136;
 constexpr uint32 SPELL_NETHER_PROTECTION = 30302;
+
+uint8 PersonalityAffinityTab(uint8 playerClass, uint32 candidate)
+{
+    if (candidate < 3)
+        return uint8(candidate);
+
+    if (playerClass == CLASS_DRUID)
+    {
+        switch (candidate)
+        {
+            case 3:
+            case 5: return 1;
+            case 4: return 0;
+            case 6: return 2;
+            default: break;
+        }
+    }
+    else if (playerClass == CLASS_DEATH_KNIGHT)
+    {
+        switch (candidate)
+        {
+            case 3:
+            case 4: return 0;
+            case 5: return 1;
+            case 6: return 2;
+            default: break;
+        }
+    }
+    else if (playerClass == CLASS_MAGE)
+    {
+        switch (candidate)
+        {
+            case 3:
+            case 5: return 1;
+            case 4: return 0;
+            case 6: return 2;
+            default: break;
+        }
+    }
+    return uint8(candidate % 3);
+}
+
 }
 
 bool PlayerbotFactory::IsPrimaryTradeSkill(uint16 skillId)
@@ -1506,29 +1553,85 @@ uint32 PlayerbotFactory::InitTalentsTree(bool increment /*false*/, bool use_temp
     }
     else
     {
-        uint32 pointSum = 0;
-        for (int i = 0; i < MAX_SPECNO; i++)
+        BotPersonality::EnsureSeeded(bot);
+        std::array<float, BotPersonality::Matrix::AxisCount> facets{};
+        if (BotPersonality::GetBaselines(bot->GetGUID().GetCounter(), facets) &&
+            cls < BotPersonality::Matrix::SpecAffinities.size())
         {
-            pointSum += sPlayerbotAIConfig.randomClassSpecProb[cls][i];
-        }
-        uint32 point = urand(1, pointSum);
-        uint32 currentP = 0;
-        int i;
-        for (i = 0; i < MAX_SPECNO; i++)
-        {
-            currentP += sPlayerbotAIConfig.randomClassSpecProb[cls][i];
-            if (point <= currentP)
+            std::array<double, MAX_SPECNO> weights{};
+            double total = 0.0;
+            for (uint32 candidate = 0; candidate < MAX_SPECNO; ++candidate)
             {
-                specTab = i;
-                break;
+                uint8 affinityTab = PersonalityAffinityTab(cls, candidate);
+                BotPersonality::Matrix::SpecAffinityDefinition const& affinity =
+                    BotPersonality::Matrix::SpecAffinities[cls][affinityTab];
+                double score = 0.0;
+                for (uint8 i = 0; i < affinity.count; ++i)
+                    score += affinity.coefficients[i].weight * facets[affinity.coefficients[i].axis];
+                double multiplier = std::clamp(
+                    std::exp(double(BotPersonality::Matrix::SpecAffinityTemperature) * score),
+                    double(BotPersonality::Matrix::SpecMultiplierFloor),
+                    double(BotPersonality::Matrix::SpecMultiplierCeiling));
+                weights[candidate] =
+                    double(sPlayerbotAIConfig.randomClassSpecProb[cls][candidate]) *
+                    BotPersonality::Matrix::SpecAffordance(bot->getRace(), cls, affinityTab) * multiplier;
+                total += weights[candidate];
+            }
+
+            if (total > 0.0)
+            {
+                for (uint32 candidate = 0; candidate < MAX_SPECNO; ++candidate)
+                    weights[candidate] /= total;
+
+                std::mt19937 engine(BotPersonality::GetSpecSeed(
+                    bot->GetGUID().GetCounter(), bot->getRace(), bot->getClass()));
+                double point = (double(engine()) + 0.5) / (double(std::mt19937::max()) + 1.0);
+                double current = 0.0;
+                specTab = 0;
+                for (uint32 candidate = 0; candidate < MAX_SPECNO; ++candidate)
+                {
+                    if (weights[candidate] > 0.0)
+                        specTab = candidate;
+                    current += weights[candidate];
+                    if (point < current)
+                    {
+                        specTab = candidate;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                specTab = 0;
+                LOG_ERROR("playerbots", "Fail to select spec num for bot {}! Set to 0.", bot->GetName());
             }
         }
-        if (i == MAX_SPECNO)
+        else
         {
-            specTab = 0;
-            LOG_ERROR("playerbots", "Fail to select spec num for bot {}! Set to 0.", bot->GetName());
+            // Stock roll, bit-for-bit, when personality is unavailable.
+            uint32 pointSum = 0;
+            for (int i = 0; i < MAX_SPECNO; i++)
+                pointSum += sPlayerbotAIConfig.randomClassSpecProb[cls][i];
+            uint32 point = urand(1, pointSum);
+            uint32 currentP = 0;
+            int i;
+            for (i = 0; i < MAX_SPECNO; i++)
+            {
+                currentP += sPlayerbotAIConfig.randomClassSpecProb[cls][i];
+                if (point <= currentP)
+                {
+                    specTab = i;
+                    break;
+                }
+            }
+            if (i == MAX_SPECNO)
+            {
+                specTab = 0;
+                LOG_ERROR("playerbots", "Fail to select spec num for bot {}! Set to 0.", bot->GetName());
+            }
         }
     }
+
     if (reset)
     {
         bot->resetTalents(true);
@@ -4952,6 +5055,24 @@ void PlayerbotFactory::ApplyEnchantAndGemsNew(bool /*destroyOld*/)
     std::vector<uint32> curCount = GetCurrentGemsCount();
     uint8 jewelersCount = 0;
     int requiredActive = 2;
+    float const gearUpkeep = std::clamp(
+        botAI->GetAiObjectContext()->GetValue<float>("trait gear upkeep")->Get(), 0.55f, 1.0f);
+    auto mixEnhancementKey = [](uint64 value)
+    {
+        value += 0x9e3779b97f4a7c15ULL;
+        value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ULL;
+        value = (value ^ (value >> 27)) * 0x94d049bb133111ebULL;
+        return value ^ (value >> 31);
+    };
+    auto shouldApplyEnhancement = [&](Item const* item, uint32 enchantSlot)
+    {
+        uint64 value = mixEnhancementKey(bot->GetGUID().GetCounter());
+        value = mixEnhancementKey(value ^ item->GetGUID().GetCounter());
+        value = mixEnhancementKey(value ^ enchantSlot);
+        double const roll = double(value >> 11) * (1.0 / 9007199254740992.0);
+        // Same item+slot always rolls alike: no flip-flop across Refresh.
+        return roll < gearUpkeep;
+    };
     std::vector<uint32> availableGems;
     for (const uint32& enchantGem : enchantGemIdCache)
     {
@@ -5059,7 +5180,7 @@ void PlayerbotFactory::ApplyEnchantAndGemsNew(bool /*destroyOld*/)
             }
         }
         // enchant item
-        if (bestEnchantId != -1)
+        if (bestEnchantId != -1 && shouldApplyEnhancement(item, PERM_ENCHANTMENT_SLOT))
         {
             bot->ApplyEnchantment(item, PERM_ENCHANTMENT_SLOT, false);
             item->SetEnchantment(PERM_ENCHANTMENT_SLOT, bestEnchantId, 0, 0, bot->GetGUID());
@@ -5123,7 +5244,7 @@ void PlayerbotFactory::ApplyEnchantAndGemsNew(bool /*destroyOld*/)
                     jewelersGemChosen = isJewelersGem;
                 }
             }
-            if (enchantIdChosen == -1)
+            if (enchantIdChosen == -1 || !shouldApplyEnhancement(item, enchant_slot))
                 continue;
             bot->ApplyEnchantment(item, EnchantmentSlot(enchant_slot), false);
             item->SetEnchantment(EnchantmentSlot(enchant_slot), enchantIdChosen, 0, 0, bot->GetGUID());
