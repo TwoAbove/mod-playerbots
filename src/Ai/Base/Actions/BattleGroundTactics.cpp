@@ -6,6 +6,7 @@
 #include "BattleGroundTactics.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "ArenaTeam.h"
 #include "ArenaTeamMgr.h"
@@ -32,6 +33,24 @@
 #include "PvpTriggers.h"
 #include "ServerFacade.h"
 #include "Vehicle.h"
+
+namespace
+{
+uint32 SkewDefenseThreshold(AiObjectContext* context, uint32 stockThreshold, uint32 outcomes)
+{
+    float caution = context->GetValue<float>("trait caution")->Get();
+    float threatCare = context->GetValue<float>("trait threat care")->Get();
+    float bravado = context->GetValue<float>("trait bravado")->Get();
+    float gank = context->GetValue<float>("trait gank")->Get();
+    float skew = caution * threatCare / std::max(bravado * gank, 0.001f);
+
+    // Extremes lean, never lock: a stock threshold strictly inside (0, outcomes) stays inside,
+    // so no personality can force always-defend or never-defend.
+    uint32 lo = stockThreshold == 0 ? 0 : 1;
+    uint32 hi = stockThreshold >= outcomes ? outcomes : outcomes - 1;
+    return std::clamp<uint32>(std::lround(stockThreshold * skew), lo, hi);
+}
+}
 
 // common bg positions
 Position const WS_WAITING_POS_HORDE_1 = {944.981f, 1423.478f, 345.434f, 6.18f};
@@ -1554,6 +1573,43 @@ bool BGTactics::eyJumpDown()
     return false;
 }
 
+bool BgRoleAction::Execute(Event event)
+{
+    if (!event.getOwner() || event.getOwner() != GetMaster())
+        return false;
+
+    Battleground* bg = bot->GetBattleground();
+    if (!bg || bg->isArena())
+    {
+        botAI->TellMaster("I am not in a battleground.");
+        return false;
+    }
+
+    BattlegroundTypeId bgType = bg->GetBgTypeID();
+    if (bgType == BATTLEGROUND_RB)
+        bgType = bg->GetBgTypeID(true);
+
+    switch (bgType)
+    {
+        case BATTLEGROUND_AV:
+        case BATTLEGROUND_WS:
+        case BATTLEGROUND_AB:
+        case BATTLEGROUND_EY:
+            break;
+        case BATTLEGROUND_IC:
+            botAI->TellMaster("Isle of Conquest roles select attack lanes, not attack or defense.");
+            return false;
+        default:
+            botAI->TellMaster("This battleground has no attack or defense role.");
+            return false;
+    }
+
+    // This is intentionally unpinned: resetObjective may organically reroll the ordered role later.
+    context->GetValue<uint32>("bg role")->Set(defend ? 0 : 9);
+    botAI->TellMaster(defend ? "Defending battleground objectives." : "Attacking battleground objectives.");
+    return true;
+}
+
 //
 // actual bg tactics below
 //
@@ -1894,7 +1950,7 @@ bool BGTactics::selectObjective(bool reset)
             if (enemyStrategy == AV_STRATEGY_DEFENSIVE)
                 defendersProhab = 0;
 
-            bool isDefender = role < defendersProhab;
+            bool isDefender = role < SkewDefenseThreshold(context, defendersProhab, 10);
             bool isAdvanced = !isDefender && role > 8;
 
             auto const& attackObjectives =
@@ -2201,7 +2257,7 @@ bool BGTactics::selectObjective(bool reset)
                 defendersProhab = 2;
 
             // Role check
-            bool isDefender = role < defendersProhab;
+            bool isDefender = role < SkewDefenseThreshold(context, defendersProhab, 10);
 
             // Retrieve flag carriers
             Unit* enemyFC = AI_VALUE(Unit*, "enemy flag carrier");
@@ -2333,7 +2389,7 @@ bool BGTactics::selectObjective(bool reset)
             if (enemyStrategy == AB_STRATEGY_DEFENSIVE)
                 defendersProhab = 2;
 
-            bool isDefender = role < defendersProhab;
+            bool isDefender = role < SkewDefenseThreshold(context, defendersProhab, 10);
             bool isSilly = urand(0, 99) < 20;
 
             BgObjective = nullptr;
@@ -2516,7 +2572,7 @@ bool BGTactics::selectObjective(bool reset)
                     break;
             }
 
-            bool isDefender = role < defendersProhab;
+            bool isDefender = role < SkewDefenseThreshold(context, defendersProhab, 10);
 
             std::tuple<uint32, uint32, uint32> front[2];
             std::tuple<uint32, uint32, uint32> back[2];

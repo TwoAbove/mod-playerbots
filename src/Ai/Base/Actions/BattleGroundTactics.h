@@ -133,6 +133,20 @@ private:
     bool IsLockedInsideKeep();
 };
 
+class BgRoleAction : public Action
+{
+public:
+    BgRoleAction(PlayerbotAI* botAI, bool defend)
+        : Action(botAI, defend ? "bg defend" : "bg attack"), defend(defend)
+    {
+    }
+
+    bool Execute(Event event) override;
+
+private:
+    bool defend;
+};
+
 class ArenaTactics : public MovementAction
 {
 public:

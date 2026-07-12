@@ -152,6 +152,8 @@ public:
         creators["roll"] = &ChatTriggerContext::roll_action;
         creators["wait for attack time"] = &ChatTriggerContext::wait_for_attack_time;
         creators["focus heal"] = &ChatTriggerContext::focus_heal;
+        creators["bg attack"] = &ChatTriggerContext::bg_attack;
+        creators["bg defend"] = &ChatTriggerContext::bg_defend;
     }
 
 private:
@@ -283,6 +285,8 @@ private:
     static Trigger* roll_action(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "roll"); }
     static Trigger* wait_for_attack_time(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "wait for attack time"); }
     static Trigger* focus_heal(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "focus heal"); }
+    static Trigger* bg_attack(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "bg attack"); }
+    static Trigger* bg_defend(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "bg defend"); }
 };
 
 #endif

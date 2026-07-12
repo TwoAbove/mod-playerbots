@@ -9,6 +9,7 @@
 #include "AddLootAction.h"
 #include "AttackAction.h"
 #include "BankAction.h"
+#include "BattleGroundTactics.h"
 #include "BuffAction.h"
 #include "BuyAction.h"
 #include "CastCustomSpellAction.h"
@@ -209,6 +210,8 @@ public:
         creators["roll"] = &ChatActionContext::roll_action;
         creators["wait for attack time"] = &ChatActionContext::wait_for_attack_time;
         creators["focus heal targets"] = &ChatActionContext::focus_heal_targets;
+        creators["bg attack"] = &ChatActionContext::bg_attack;
+        creators["bg defend"] = &ChatActionContext::bg_defend;
     }
 
 private:
