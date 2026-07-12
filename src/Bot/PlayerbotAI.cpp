@@ -1946,17 +1946,34 @@ bool PlayerbotAI::IsCombo(Player* player)
 
 bool PlayerbotAI::IsRangedDps(Player* player, bool bySpec) { return IsRanged(player, bySpec) && IsDps(player, bySpec); }
 
-bool PlayerbotAI::IsAssistHealOfIndex(Player* player, uint8 index, bool ignoreDeadPlayers)
+namespace
 {
-    if (!IsHeal(player))
-        return false;
-
-    if (ignoreDeadPlayers && !player->IsAlive())
-        return false;
-
+template <typename CountsMember>
+int32 GroupIndexOf(Player* player, CountsMember counts)
+{
     Group* group = player->GetGroup();
     if (!group)
-        return false;
+        return -1;
+
+    int32 counter = 0;
+    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+    {
+        Player* member = ref->GetSource();
+        if (!member)
+            continue;
+        if (member == player)
+            return counter;
+        if (counts(member, group))
+            counter++;
+    }
+    return -1;
+}
+
+int32 AssistIndexOf(Player* player, bool ignoreDeadPlayers, bool (*inRole)(Player*))
+{
+    Group* group = player->GetGroup();
+    if (!group)
+        return -1;
 
     uint8 totalAssistants = 0;
     uint8 assistantsBeforePlayer = 0;
@@ -1966,11 +1983,10 @@ bool PlayerbotAI::IsAssistHealOfIndex(Player* player, uint8 index, bool ignoreDe
     for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
     {
         Player* member = ref->GetSource();
-        if (!member || (ignoreDeadPlayers && !member->IsAlive()) || !IsHeal(member))
+        if (!member || (ignoreDeadPlayers && !member->IsAlive()) || !inRole(member))
             continue;
 
         bool isAssistant = group->IsAssistant(member->GetGUID());
-
         if (isAssistant)
             totalAssistants++;
 
@@ -1986,64 +2002,29 @@ bool PlayerbotAI::IsAssistHealOfIndex(Player* player, uint8 index, bool ignoreDe
     }
 
     if (!playerFound)
+        return -1;
+
+    // Assistants order first: an assistant's index counts assistants ahead of it,
+    // a non-assistant's index is shifted past all assistants.
+    return group->IsAssistant(player->GetGUID()) ? assistantsBeforePlayer
+                                                 : totalAssistants + nonAssistantsBeforePlayer;
+}
+}
+
+bool PlayerbotAI::IsAssistHealOfIndex(Player* player, uint8 index, bool ignoreDeadPlayers)
+{
+    if (!IsHeal(player) || (ignoreDeadPlayers && !player->IsAlive()))
         return false;
 
-    // If the player is an assistant, their index is just the number of assistants before them.
-    // If they are a non-assistant, their index is shifted by the total number of assistants.
-    uint8 playerIndex = group->IsAssistant(player->GetGUID())
-        ? assistantsBeforePlayer : (totalAssistants + nonAssistantsBeforePlayer);
-
-    return playerIndex == index;
+    return AssistIndexOf(player, ignoreDeadPlayers, [](Player* p) { return IsHeal(p); }) == index;
 }
 
 bool PlayerbotAI::IsAssistRangedDpsOfIndex(Player* player, uint8 index, bool ignoreDeadPlayers)
 {
-    if (!IsRangedDps(player))
+    if (!IsRangedDps(player) || (ignoreDeadPlayers && !player->IsAlive()))
         return false;
 
-    if (ignoreDeadPlayers && !player->IsAlive())
-        return false;
-
-    Group* group = player->GetGroup();
-    if (!group)
-        return false;
-
-    uint8 totalAssistants = 0;
-    uint8 assistantsBeforePlayer = 0;
-    uint8 nonAssistantsBeforePlayer = 0;
-    bool playerFound = false;
-
-    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-    {
-        Player* member = ref->GetSource();
-        if (!member || (ignoreDeadPlayers && !member->IsAlive()) || !IsRangedDps(member))
-            continue;
-
-        bool isAssistant = group->IsAssistant(member->GetGUID());
-
-        if (isAssistant)
-            totalAssistants++;
-
-        if (member == player)
-            playerFound = true;
-        else if (!playerFound)
-        {
-            if (isAssistant)
-                assistantsBeforePlayer++;
-            else
-                nonAssistantsBeforePlayer++;
-        }
-    }
-
-    if (!playerFound)
-        return false;
-
-    // If the player is an assistant, their index is just the number of assistants before them.
-    // If they are a non-assistant, their index is shifted by the total number of assistants.
-    uint8 playerIndex = group->IsAssistant(player->GetGUID())
-        ? assistantsBeforePlayer : (totalAssistants + nonAssistantsBeforePlayer);
-
-    return playerIndex == index;
+    return AssistIndexOf(player, ignoreDeadPlayers, [](Player* p) { return IsRangedDps(p); }) == index;
 }
 
 bool PlayerbotAI::HasAggro(Unit* unit)
@@ -2067,190 +2048,43 @@ bool PlayerbotAI::IsMovementImpaired(Unit* unit)
 
 int32 PlayerbotAI::GetAssistTankIndex(Player* player)
 {
-    Group* group = player->GetGroup();
-    if (!group)
-    {
-        return -1;
-    }
-
-    int counter = 0;
-    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-    {
-        Player* member = ref->GetSource();
-        if (!member)
-        {
-            continue;
-        }
-
-        if (player == member)
-        {
-            return counter;
-        }
-
-        if (IsTank(member, true) && group->IsAssistant(member->GetGUID()))
-        {
-            counter++;
-        }
-    }
-
-    return 0;
+    return GroupIndexOf(player, [](Player* m, Group* g) { return IsTank(m, true) && g->IsAssistant(m->GetGUID()); });
 }
 
 int32 PlayerbotAI::GetGroupSlotIndex(Player* player)
 {
-    Group* group = bot->GetGroup();
-    if (!group)
-    {
-        return -1;
-    }
-    int counter = 0;
-    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-    {
-        Player* member = ref->GetSource();
-
-        if (!member)
-        {
-            continue;
-        }
-
-        if (player == member)
-        {
-            return counter;
-        }
-        counter++;
-    }
-    return 0;
+    return GroupIndexOf(player, [](Player*, Group*) { return true; });
 }
 
 int32 PlayerbotAI::GetRangedIndex(Player* player)
 {
     if (!IsRanged(player))
-    {
         return -1;
-    }
-    Group* group = bot->GetGroup();
-    if (!group)
-    {
-        return -1;
-    }
-    int counter = 0;
-    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-    {
-        Player* member = ref->GetSource();
 
-        if (!member)
-        {
-            continue;
-        }
-
-        if (player == member)
-        {
-            return counter;
-        }
-        if (IsRanged(member))
-        {
-            counter++;
-        }
-    }
-    return 0;
+    return GroupIndexOf(player, [](Player* m, Group*) { return IsRanged(m); });
 }
 
 int32 PlayerbotAI::GetClassIndex(Player* player, uint8 cls)
 {
     if (player->getClass() != cls)
-    {
         return -1;
-    }
-    Group* group = bot->GetGroup();
-    if (!group)
-    {
-        return -1;
-    }
-    int counter = 0;
-    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-    {
-        Player* member = ref->GetSource();
 
-        if (!member)
-        {
-            continue;
-        }
-
-        if (player == member)
-        {
-            return counter;
-        }
-        if (member->getClass() == cls)
-        {
-            counter++;
-        }
-    }
-    return 0;
+    return GroupIndexOf(player, [cls](Player* m, Group*) { return m->getClass() == cls; });
 }
 int32 PlayerbotAI::GetRangedDpsIndex(Player* player)
 {
     if (!IsRangedDps(player))
-    {
         return -1;
-    }
-    Group* group = bot->GetGroup();
-    if (!group)
-    {
-        return -1;
-    }
-    int counter = 0;
-    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-    {
-        Player* member = ref->GetSource();
 
-        if (!member)
-        {
-            continue;
-        }
-
-        if (player == member)
-        {
-            return counter;
-        }
-        if (IsRangedDps(member))
-        {
-            counter++;
-        }
-    }
-    return 0;
+    return GroupIndexOf(player, [](Player* m, Group*) { return IsRangedDps(m); });
 }
 
 int32 PlayerbotAI::GetMeleeIndex(Player* player)
 {
     if (IsRanged(player))
-    {
         return -1;
-    }
-    Group* group = bot->GetGroup();
-    if (!group)
-    {
-        return -1;
-    }
-    int counter = 0;
-    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-    {
-        Player* member = ref->GetSource();
 
-        if (!member)
-        {
-            continue;
-        }
-
-        if (player == member)
-        {
-            return counter;
-        }
-        if (!IsRanged(member))
-        {
-            counter++;
-        }
-    }
-    return 0;
+    return GroupIndexOf(player, [](Player* m, Group*) { return !IsRanged(m); });
 }
 
 bool PlayerbotAI::IsTank(Player* player, bool bySpec)
@@ -2514,52 +2348,10 @@ bool PlayerbotAI::IsAssistTank(Player* player)
 
 bool PlayerbotAI::IsAssistTankOfIndex(Player* player, uint8 index, bool ignoreDeadPlayers)
 {
-    if (!IsAssistTank(player))
+    if (!IsAssistTank(player) || (ignoreDeadPlayers && !player->IsAlive()))
         return false;
 
-    if (ignoreDeadPlayers && !player->IsAlive())
-        return false;
-
-    Group* group = player->GetGroup();
-    if (!group)
-        return false;
-
-    uint8 totalAssistants = 0;
-    uint8 assistantsBeforePlayer = 0;
-    uint8 nonAssistantsBeforePlayer = 0;
-    bool playerFound = false;
-
-    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-    {
-        Player* member = ref->GetSource();
-        if (!member || (ignoreDeadPlayers && !member->IsAlive()) || !IsAssistTank(member))
-            continue;
-
-        bool isAssistant = group->IsAssistant(member->GetGUID());
-
-        if (isAssistant)
-            totalAssistants++;
-
-        if (member == player)
-            playerFound = true;
-        else if (!playerFound)
-        {
-            if (isAssistant)
-                assistantsBeforePlayer++;
-            else
-                nonAssistantsBeforePlayer++;
-        }
-    }
-
-    if (!playerFound)
-        return false;
-
-    // If the player is an assistant, their index is just the number of assistants before them.
-    // If they are a non-assistant, their index is shifted by the total number of assistants.
-    uint8 playerIndex = group->IsAssistant(player->GetGUID())
-        ? assistantsBeforePlayer : (totalAssistants + nonAssistantsBeforePlayer);
-
-    return playerIndex == index;
+    return AssistIndexOf(player, ignoreDeadPlayers, [](Player* p) { return IsAssistTank(p); }) == index;
 }
 
 namespace acore

@@ -435,11 +435,11 @@ public:
     bool HasAggro(Unit* unit);
     bool IsMovementImpaired(Unit* unit);
     static int32 GetAssistTankIndex(Player* player);
-    int32 GetGroupSlotIndex(Player* player);
-    int32 GetRangedIndex(Player* player);
-    int32 GetClassIndex(Player* player, uint8 cls);
-    int32 GetRangedDpsIndex(Player* player);
-    int32 GetMeleeIndex(Player* player);
+    static int32 GetGroupSlotIndex(Player* player);
+    static int32 GetRangedIndex(Player* player);
+    static int32 GetClassIndex(Player* player, uint8 cls);
+    static int32 GetRangedDpsIndex(Player* player);
+    static int32 GetMeleeIndex(Player* player);
 
     Creature* GetCreature(ObjectGuid guid);
     Unit* GetUnit(ObjectGuid guid);
