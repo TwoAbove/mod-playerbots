@@ -256,6 +256,8 @@ public:
     bool summonAtInnkeepersEnabled;
     std::string combatStrategies, nonCombatStrategies;
     std::string randomBotCombatStrategies, randomBotNonCombatStrategies;
+    std::string tankCombatStrategies, healCombatStrategies, dpsCombatStrategies;
+    std::string tankNonCombatStrategies, healNonCombatStrategies, dpsNonCombatStrategies;
     bool applyInstanceStrategies;
     uint32 randomBotMinLevel, randomBotMaxLevel;
     float randomChangeMultiplier;

@@ -22,17 +22,38 @@
 #include "Config.h"
 #include "DatabaseEnv.h"
 #include "DatabaseLoader.h"
+#include "GroupScript.h"
 #include "GuildTaskMgr.h"
 #include "PlayerScript.h"
+#include "Personality/BotPersonality.h"
 #include "PlayerbotAIConfig.h"
 #include "PlayerbotGuildMgr.h"
 #include "PlayerbotSpellRepository.h"
 #include "PlayerbotWorldThreadProcessor.h"
 #include "RandomPlayerbotMgr.h"
+#include "QuestDef.h"
 #include "ScriptMgr.h"
 #include "PlayerbotCommandScript.h"
 #include "cmath"
 #include "BattleGroundTactics.h"
+
+namespace
+{
+std::string PvpLedgerDetail(Player* self, Player* other)
+{
+    std::string detail;
+    detail.reserve(80);
+    detail.append(other->GetName());
+    detail.append("|guid:").append(std::to_string(other->GetGUID().GetCounter()));
+    detail.append("|zone:").append(std::to_string(self->GetZoneId()));
+    detail.append("|lvl:").append(std::to_string(self->GetLevel()));
+    detail.push_back('v');
+    detail.append(std::to_string(other->GetLevel()));
+    if (detail.size() > 255)
+        detail.resize(255);
+    return detail;
+}
+}
 
 class PlayerbotsDatabaseScript : public DatabaseScript
 {
@@ -89,7 +110,12 @@ public:
         PLAYERHOOK_CAN_PLAYER_USE_GUILD_CHAT,
         PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT,
         PLAYERHOOK_ON_GIVE_EXP,
-        PLAYERHOOK_ON_BEFORE_TELEPORT
+        PLAYERHOOK_ON_BEFORE_TELEPORT,
+        PLAYERHOOK_ON_PLAYER_COMPLETE_QUEST,
+        PLAYERHOOK_ON_PVP_KILL,
+        PLAYERHOOK_ON_PLAYER_KILLED_BY_CREATURE,
+        PLAYERHOOK_ON_LEVEL_CHANGED,
+        PLAYERHOOK_ON_LOGOUT
     }) {}
 
     void OnPlayerLogin(Player* player) override
@@ -169,6 +195,7 @@ public:
     void OnPlayerAfterUpdate(Player* player, uint32 diff) override
     {
         PlayerbotAI* const botAI = PlayerbotsMgr::instance().GetPlayerbotAI(player);
+        BotPersonality::ProcessPending(player);
 
         if (botAI != nullptr)
         {
@@ -302,6 +329,74 @@ public:
         // otherwise apply bot XP multiplier.
         amount = static_cast<uint32>(std::round(static_cast<float>(amount) * sPlayerbotAIConfig.randomBotXPRate));
     }
+
+    void OnPlayerCompleteQuest(Player* player, Quest const* quest) override
+    {
+        if (player && quest && GET_PLAYERBOT_AI(player))
+            BotPersonality::OnLifeEvent(player, "quest complete", quest->GetTitle().c_str());
+    }
+
+    void OnPlayerPVPKill(Player* killer, Player* killed) override
+    {
+        // Core fires this hook with killer == killed on pvp-flagged suicides
+        if (!killer || !killed || killer == killed)
+            return;
+
+        if (GET_PLAYERBOT_AI(killer))
+        {
+            if (!killer->InBattleground())
+                BotPersonality::GrudgeSettled(killer->GetGUID().GetCounter(), killed->GetGUID().GetCounter());
+            BotPersonality::OnLifeEvent(killer,
+                killer->InBattleground() ? "killed in battleground" : "killed player in world",
+                PvpLedgerDetail(killer, killed).c_str());
+        }
+        if (GET_PLAYERBOT_AI(killed))
+        {
+            if (!killed->InBattleground())
+                BotPersonality::NoteGank(killed->GetGUID().GetCounter(), killer->GetGUID().GetCounter());
+            BotPersonality::OnLifeEvent(killed,
+                killed->InBattleground() ? "died in battleground" : "ganked in world",
+                PvpLedgerDetail(killed, killer).c_str());
+        }
+    }
+
+    void OnPlayerKilledByCreature(Creature* killer, Player* killed) override
+    {
+        if (killer && killed && GET_PLAYERBOT_AI(killed))
+            BotPersonality::OnLifeEvent(killed, "died to creature", killer->GetName().c_str());
+    }
+
+    void OnPlayerLevelChanged(Player* player, uint8 /*oldLevel*/) override
+    {
+        if (player && GET_PLAYERBOT_AI(player))
+        {
+            std::string level = std::to_string(player->GetLevel());
+            BotPersonality::OnLifeEvent(player, "level up", level.c_str());
+        }
+    }
+
+    void OnPlayerLogout(Player* player) override
+    {
+        if (player && GET_PLAYERBOT_AI(player))
+            BotPersonality::Flush(player);
+    }
+};
+
+class PlayerbotsPersonalityGroupScript : public GroupScript
+{
+public:
+    PlayerbotsPersonalityGroupScript()
+        : GroupScript("PlayerbotsPersonalityGroupScript", {GROUPHOOK_ON_ADD_MEMBER}) {}
+
+    void OnAddMember(Group* group, ObjectGuid guid) override
+    {
+        if (Player* player = ObjectAccessor::FindConnectedPlayer(guid);
+            !player || !player->GetSession()->IsBot())
+            return;
+
+        BotPersonality::QueueLifeEvent(guid.GetCounter(), "joined group",
+            group ? group->GetLeaderGUID().ToString() : "");
+    }
 };
 
 class PlayerbotsMiscScript : public MiscScript
@@ -341,6 +436,7 @@ class PlayerbotsWorldScript : public WorldScript
 public:
     PlayerbotsWorldScript() : WorldScript("PlayerbotsWorldScript", {
         WORLDHOOK_ON_BEFORE_WORLD_INITIALIZED,
+        WORLDHOOK_ON_AFTER_CONFIG_LOAD,
         WORLDHOOK_ON_UPDATE
     }) {}
 
@@ -367,6 +463,7 @@ public:
         LOG_INFO("server.loading", "Load Playerbots Config...");
 
         sPlayerbotAIConfig.Initialize();
+        BotPersonality::Initialize();
 
         LOG_INFO("server.loading", ">> Loaded playerbots config in {} ms", GetMSTimeDiffToNow(oldMSTime));
         LOG_INFO("server.loading", " ");
@@ -374,6 +471,12 @@ public:
         PlayerbotSpellRepository::Instance().Initialize();
 
         LOG_INFO("server.loading", "Playerbots World Thread Processor initialized");
+    }
+
+    void OnAfterConfigLoad(bool reload) override
+    {
+        if (reload)
+            BotPersonality::ReloadConfig();
     }
 
     void OnUpdate(uint32 diff) override
@@ -513,6 +616,15 @@ public:
         bgStrategies[bg->GetInstanceID()] = data;
     }
 
+    void OnBattlegroundEndReward(Battleground* bg, Player* player, TeamId winnerTeamId) override
+    {
+        if (!bg || !bg->isBattleground() || !player || winnerTeamId == TEAM_NEUTRAL || !GET_PLAYERBOT_AI(player))
+            return;
+
+        BotPersonality::OnLifeEvent(player,
+            player->GetBgTeamId() == winnerTeamId ? "won battleground" : "lost battleground");
+    }
+
     void OnBattlegroundEnd(Battleground* bg, TeamId /*winnerTeam*/) override { bgStrategies.erase(bg->GetInstanceID()); }
 };
 
@@ -535,6 +647,7 @@ void AddPlayerbotsScripts()
     new PlayerbotsBattlefieldScript();
     new PlayerbotsDatabaseScript();
     new PlayerbotsPlayerScript();
+    new PlayerbotsPersonalityGroupScript();
     new PlayerbotsMiscScript();
     new PlayerbotsServerScript();
     new PlayerbotsWorldScript();

@@ -69,6 +69,7 @@
 #include "PartyMemberSnaredTargetValue.h"
 #include "PartyMemberWithoutAuraValue.h"
 #include "PartyMemberWithoutItemValue.h"
+#include "Personality/PersonalityMatrix.h"
 #include "PetTargetValue.h"
 #include "PositionValue.h"
 #include "PossibleRpgTargetsValue.h"
@@ -212,6 +213,14 @@ public:
         creators["attackers"] = &ValueContext::attackers;
         creators["invalid target"] = &ValueContext::invalid_target;
         creators["mana save level"] = &ValueContext::mana_save_level;
+        for (BotPersonality::Matrix::DialDefinition const& definition : BotPersonality::Matrix::Dials)
+        {
+            BotPersonality::Matrix::DialDefinition const* dial = &definition;
+            creators[dial->valueName] = [dial](PlayerbotAI* botAI) -> UntypedValue*
+            {
+                return new ManualSetValue<float>(botAI, dial->neutral, dial->valueName);
+            };
+        }
         creators["combat"] = &ValueContext::combat;
         creators["lfg proposal"] = &ValueContext::lfg_proposal;
         creators["bag space"] = &ValueContext::bag_space;

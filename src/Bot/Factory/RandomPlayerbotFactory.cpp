@@ -472,6 +472,9 @@ void RandomPlayerbotFactory::CreateRandomBots()
         // Clear playerbots_random_bots and playerbots_account_type
         PlayerbotsDatabase.Execute("DELETE FROM playerbots_random_bots");
         PlayerbotsDatabase.Execute("DELETE FROM playerbots_account_type");
+        // Recycled guids must not inherit a previous life's profile or ledger.
+        PlayerbotsDatabase.Execute("DELETE FROM playerbots_personality");
+        PlayerbotsDatabase.Execute("DELETE FROM playerbots_personality_ledger");
 
         // Get the database names dynamically
         std::string loginDBName = LoginDatabase.GetConnectionInfo()->database;

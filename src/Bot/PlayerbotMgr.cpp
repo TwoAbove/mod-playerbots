@@ -25,6 +25,7 @@
 #include "ObjectMgr.h"
 #include "PlayerbotAIConfig.h"
 #include "PlayerbotRepository.h"
+#include "Personality/BotPersonality.h"
 #include "PlayerbotFactory.h"
 #include "PlayerbotOperations.h"
 #include "PlayerbotSecurity.h"
@@ -487,6 +488,7 @@ void PlayerbotHolder::OnBotLogin(Player* const bot)
     }
 
     Player* master = botAI->GetMaster();
+    BotPersonality::EnsureSeeded(bot);
 
     Group* group = bot->GetGroup();
     if (group)

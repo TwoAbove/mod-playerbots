@@ -1028,6 +1028,16 @@ AiPlayerbot.RandomBotNonCombatStrategies = ""
 AiPlayerbot.CombatStrategies = ""
 AiPlayerbot.NonCombatStrategies = ""
 
+# Per-role strategy overrides (tank/healer/dps), applied after class defaults and before the globals above.
+# Syntax "+aoe,-potions"; empty = no change. Per-bot 'co'/'nc' chat overrides still win on login.
+# Don't add "healer dps" here; AiPlayerbot.HealerDPSMapRestriction below toggles it per map.
+AiPlayerbot.TankCombatStrategies = ""
+AiPlayerbot.HealCombatStrategies = ""
+AiPlayerbot.DpsCombatStrategies = ""
+AiPlayerbot.TankNonCombatStrategies = ""
+AiPlayerbot.HealNonCombatStrategies = ""
+AiPlayerbot.DpsNonCombatStrategies = ""
+
 # Remove "healer dps" strategy on the maps specified below.
 # Default: 1 (enabled)
 AiPlayerbot.HealerDPSMapRestriction = 1
@@ -1808,7 +1818,7 @@ AiPlayerbot.WorldBuffMatrix = # WARRIOR ARMS 1:0,1,0,80,80:53760,57358; # WARRIO
 #
 #
 
-# AiPlayerbot.RandomClassSpecProb.<class>.<specno>  # The probability to choose the spec
+# AiPlayerbot.RandomClassSpecProb.<class>.<specno>  # Baseline probability; personality blends fresh-bot choices when enabled
 # AiPlayerbot.RandomClassSpecIndex.<class>.<specno> # The spec index in PremadeSpec
 
 #
@@ -2360,3 +2370,45 @@ AiPlayerbot.TargetPosRecalcDistance = 0.1
 
 # Allow bots to be summoned near innkeepers
 AiPlayerbot.SummonAtInnkeepersEnabled = 1
+
+####################################################################################################
+# BOT PERSONALITY
+####################################################################################################
+
+# Per-bot personality: seeded trait profiles, life-event drift, behavior dials, spec-choice blending.
+# Disabled = stock behavior exactly.
+AiPlayerbot.Personality.Enable = 1
+
+# World seed mixed with character guid + stream id for all personality rolls.
+AiPlayerbot.Personality.Seed = 0
+
+# Real hours per psychological day (adaptation half-life: 30 such days).
+AiPlayerbot.Personality.DayHours = 24
+
+# Debug overrides; the commented values are the stock-equivalent neutrals. Config reload updates
+# active bots (DuelStart on the next strategy reset).
+#AiPlayerbot.PersonalityDial.Caution = 1.0       # 0.6 .. 1.8
+#AiPlayerbot.PersonalityDial.Bravado = 1.0       # 0.7 .. 1.5
+#AiPlayerbot.PersonalityDial.ThreatCare = 1.0    # 0.7 .. 1.4
+#AiPlayerbot.PersonalityDial.Thrift = 1.0        # 0.6 .. 1.6
+#AiPlayerbot.PersonalityDial.Gank = 1.0          # 0.0 .. 1.6
+#AiPlayerbot.PersonalityDial.DuelAccept = 90     # 75 .. 97
+#AiPlayerbot.PersonalityDial.DuelStart = 0.25    # 0.0 .. 0.6
+#AiPlayerbot.PersonalityDial.ModeGrind = 1.0     # 0.4 .. 2.5
+#AiPlayerbot.PersonalityDial.ModeQuest = 1.0     # 0.4 .. 2.5
+#AiPlayerbot.PersonalityDial.ModePvp = 1.0       # 0.4 .. 2.5
+#AiPlayerbot.PersonalityDial.ModeRest = 1.0      # 0.4 .. 2.5
+#AiPlayerbot.PersonalityDial.ModeWander = 1.0    # 0.4 .. 2.5
+#AiPlayerbot.PersonalityDial.Reply = 1.0         # 0.3 .. 3.0
+#AiPlayerbot.PersonalityDial.Expressive = 1.0    # 0.3 .. 3.0
+#AiPlayerbot.PersonalityDial.Warmth = 0.5        # 0.0 .. 1.0
+#AiPlayerbot.PersonalityDial.Grouper = 0.5       # 0.0 .. 1.0
+#AiPlayerbot.PersonalityDial.AppetiteSafety = 1.0           # 0.75 .. 1.3333
+#AiPlayerbot.PersonalityDial.AppetiteReliability = 1.0      # 0.75 .. 1.3333
+#AiPlayerbot.PersonalityDial.AppetiteVolatility = 1.0       # 0.75 .. 1.3333
+#AiPlayerbot.PersonalityDial.AppetiteTempo = 1.0            # 0.75 .. 1.3333
+#AiPlayerbot.PersonalityDial.AppetiteSelfSufficiency = 1.0  # 0.75 .. 1.3333
+#AiPlayerbot.PersonalityDial.GearStandards = 1.0            # 0.90 .. 1.30
+#AiPlayerbot.PersonalityDial.GearAttachment = 1.0           # 1.0 .. 1.12
+#AiPlayerbot.PersonalityDial.GearUpkeep = 1.0               # 0.55 .. 1.0
+#AiPlayerbot.PersonalityDial.Vengeance = 0.5                # 0.0 .. 1.0

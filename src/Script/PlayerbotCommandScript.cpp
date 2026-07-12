@@ -18,6 +18,7 @@
 #include "GuildTaskMgr.h"
 #include "PerfMonitor.h"
 #include "PlayerbotMgr.h"
+#include "Personality/BotPersonality.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptMgr.h"
 
@@ -46,6 +47,7 @@ public:
             {"gtask", HandleGuildTaskCommand, SEC_GAMEMASTER, Console::Yes},
             {"pmon", HandlePerfMonCommand, SEC_GAMEMASTER, Console::Yes},
             {"rndbot", HandleRandomPlayerbotCommand, SEC_GAMEMASTER, Console::Yes},
+            {"who", HandlePersonalityWhoCommand, SEC_GAMEMASTER, Console::Yes},
             {"debug", playerbotsDebugCommandTable},
             {"account", playerbotsAccountCommandTable},
         };
@@ -65,6 +67,16 @@ public:
     static bool HandleRandomPlayerbotCommand(ChatHandler* handler, char const* args)
     {
         return RandomPlayerbotMgr::HandlePlayerbotConsoleCommand(handler, args);
+    }
+
+    static bool HandlePersonalityWhoCommand(ChatHandler* handler, char const* args)
+    {
+        if (!args || !*args)
+        {
+            handler->SendSysMessage("Usage: .playerbots who <CharName>");
+            return false;
+        }
+        return BotPersonality::HandleWho(handler, args);
     }
 
     static bool HandleGuildTaskCommand(ChatHandler* handler, char const* args)

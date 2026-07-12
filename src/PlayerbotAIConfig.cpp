@@ -435,6 +435,12 @@ bool PlayerbotAIConfig::Initialize()
     randomBotNonCombatStrategies = sConfigMgr->GetOption<std::string>("AiPlayerbot.RandomBotNonCombatStrategies", "");
     combatStrategies = sConfigMgr->GetOption<std::string>("AiPlayerbot.CombatStrategies", "");
     nonCombatStrategies = sConfigMgr->GetOption<std::string>("AiPlayerbot.NonCombatStrategies", "");
+    tankCombatStrategies = sConfigMgr->GetOption<std::string>("AiPlayerbot.TankCombatStrategies", "");
+    healCombatStrategies = sConfigMgr->GetOption<std::string>("AiPlayerbot.HealCombatStrategies", "");
+    dpsCombatStrategies = sConfigMgr->GetOption<std::string>("AiPlayerbot.DpsCombatStrategies", "");
+    tankNonCombatStrategies = sConfigMgr->GetOption<std::string>("AiPlayerbot.TankNonCombatStrategies", "");
+    healNonCombatStrategies = sConfigMgr->GetOption<std::string>("AiPlayerbot.HealNonCombatStrategies", "");
+    dpsNonCombatStrategies = sConfigMgr->GetOption<std::string>("AiPlayerbot.DpsNonCombatStrategies", "");
     applyInstanceStrategies = sConfigMgr->GetOption<bool>("AiPlayerbot.ApplyInstanceStrategies", true);
 
     commandPrefix = sConfigMgr->GetOption<std::string>("AiPlayerbot.CommandPrefix", "");
