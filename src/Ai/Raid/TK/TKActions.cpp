@@ -656,8 +656,9 @@ bool VoidReaverSpreadRangedAction::Execute(Event /*event*/)
     if (!hasReachedVoidReaverPosition[guid])
     {
         int healerCount = 0, rangedDpsCount = 0;
-        int healerIndex = GetHealerIndex(group, healerCount);
-        int rangedDpsIndex = GetRangedDpsIndex(group, rangedDpsCount);
+        int healerIndex = GetRoleIndex(group, healerCount, [](Player* m) { return PlayerbotAI::IsHeal(m); });
+        int rangedDpsIndex = GetRoleIndex(group, rangedDpsCount,
+                                          [](Player* m) { return PlayerbotAI::IsRanged(m) && !PlayerbotAI::IsHeal(m); });
 
         // Void Reaver's hitbox is 15 yards (GetDistance2d() of 16.5 yards for non-Tauren)
         constexpr float radius = 45.0f;
@@ -701,38 +702,20 @@ bool VoidReaverSpreadRangedAction::Execute(Event /*event*/)
     return false;
 }
 
-int VoidReaverSpreadRangedAction::GetHealerIndex(Group* group, int& healerCount)
+int VoidReaverSpreadRangedAction::GetRoleIndex(Group* group, int& roleCount, bool (*inRole)(Player*))
 {
-    std::vector<Player*> healers;
+    roleCount = 0;
+    int index = -1;
     for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
     {
         Player* member = ref->GetSource();
-        if (!member || !botAI->IsHeal(member))
+        if (!member || !inRole(member))
             continue;
-
-        healers.push_back(member);
+        if (member == bot)
+            index = roleCount;
+        roleCount++;
     }
-
-    healerCount = healers.size();
-    auto it = std::find(healers.begin(), healers.end(), bot);
-    return (it != healers.end()) ? std::distance(healers.begin(), it) : -1;
-}
-
-int VoidReaverSpreadRangedAction::GetRangedDpsIndex(Group* group, int& rangedDpsCount)
-{
-    std::vector<Player*> rangedDps;
-    for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-    {
-        Player* member = ref->GetSource();
-        if (!member || !botAI->IsRanged(member) || botAI->IsHeal(member))
-            continue;
-
-        rangedDps.push_back(member);
-    }
-
-    rangedDpsCount = rangedDps.size();
-    auto it = std::find(rangedDps.begin(), rangedDps.end(), bot);
-    return (it != rangedDps.end()) ? std::distance(rangedDps.begin(), it) : -1;
+    return index;
 }
 
 bool VoidReaverAvoidArcaneOrbAction::Execute(Event /*event*/)

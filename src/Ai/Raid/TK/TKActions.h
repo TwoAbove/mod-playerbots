@@ -155,8 +155,7 @@ public:
     bool Execute(Event event) override;
 
 private:
-    int GetHealerIndex(Group* group, int& healerCount);
-    int GetRangedDpsIndex(Group* group, int& rangedDpsCount);
+    int GetRoleIndex(Group* group, int& roleCount, bool (*inRole)(Player*));
 };
 
 class VoidReaverAvoidArcaneOrbAction : public MovementAction
