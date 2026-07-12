@@ -5,8 +5,11 @@
 
 #include "EnemyPlayerValue.h"
 
+#include <algorithm>
+
 #include "CombatManager.h"
 #include "Playerbots.h"
+#include "Personality/BotPersonality.h"
 #include "ServerFacade.h"
 #include "Vehicle.h"
 
@@ -80,8 +83,16 @@ Unit* EnemyPlayerValue::Calculate()
 
     // 2. Find enemy player in range.
 
-    GuidVector players = AI_VALUE(GuidVector, "nearest enemy players");
+    float const gankScale =
+        std::clamp(botAI->GetAiObjectContext()->GetValue<float>("trait gank")->Get(), 0.0f, 1.6f);
+    GuidVector players = gankScale > 0.0f ? AI_VALUE(GuidVector, "nearest enemy players") : GuidVector{};
     float const maxAggroDistance = GetMaxAttackDistance();
+    float const vengeance =
+        std::clamp(botAI->GetAiObjectContext()->GetValue<float>("trait vengeance")->Get(), 0.0f, 1.0f);
+    Player* firstLegalTarget = nullptr;
+    Player* bestEffectiveTarget = nullptr;
+    float bestEffectiveDistance = 0.0f;
+    bool hasBiasedGrudge = false;
     for (auto const& gTarget : players)
     {
         Unit* pUnit = botAI->GetUnit(gTarget);
@@ -108,16 +119,40 @@ Unit* EnemyPlayerValue::Calculate()
 
         // Aggro weak enemies from further away.
         // If controlling mobile vehicle only agro close enemies (otherwise will never reach objective)
-        uint32 const aggroDistance = controllingVehicle                                               ? 5.0f
-                                     : (controllingCannon || bot->GetHealth() > pTarget->GetHealth()) ? maxAggroDistance
-                                                                                                      : 20.0f;
+        float const aggroDistance =
+            (controllingVehicle                                              ? 5.0f
+             : (controllingCannon || bot->GetHealth() > pTarget->GetHealth()) ? maxAggroDistance
+                                                                                : 20.0f) *
+            gankScale;
         if (!bot->IsWithinDist(pTarget, aggroDistance))
             continue;
 
-        if (bot->IsWithinLOSInMap(pTarget) &&
-            (controllingCannon || (fabs(bot->GetPositionZ() - pTarget->GetPositionZ()) < 30.0f)))
-            return pTarget;
+        if (!bot->IsWithinLOSInMap(pTarget) ||
+            (!controllingCannon && fabs(bot->GetPositionZ() - pTarget->GetPositionZ()) >= 30.0f))
+            continue;
+
+        if (!firstLegalTarget)
+            firstLegalTarget = pTarget;
+
+        float const grudge = BotPersonality::GrudgeWeight(
+            bot->GetGUID().GetCounter(), pTarget->GetGUID().GetCounter());
+        float const factor = std::clamp(1.0f + grudge * (vengeance - 0.5f) * 2.0f, 0.5f, 2.0f);
+        float const effectiveDistance = bot->GetDistance(pTarget) / factor;
+        hasBiasedGrudge = hasBiasedGrudge || (grudge > 0.0f && factor != 1.0f);
+        if (effectiveDistance > aggroDistance)
+            continue;
+
+        if (!bestEffectiveTarget || effectiveDistance < bestEffectiveDistance)
+        {
+            bestEffectiveTarget = pTarget;
+            bestEffectiveDistance = effectiveDistance;
+        }
     }
+
+    if (hasBiasedGrudge)
+        return bestEffectiveTarget;
+    if (firstLegalTarget)
+        return firstLegalTarget;
 
     // 3. Check party attackers.
 
