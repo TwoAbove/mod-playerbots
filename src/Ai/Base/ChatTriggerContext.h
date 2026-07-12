@@ -97,6 +97,7 @@ public:
         creators["lfg"] = &ChatTriggerContext::lfg;
         creators["spell"] = &ChatTriggerContext::spell;
         creators["rti"] = &ChatTriggerContext::rti;
+        creators["mark"] = &ChatTriggerContext::mark;
         creators["revive"] = &ChatTriggerContext::revive;
         creators["runaway"] = &ChatTriggerContext::runaway;
         creators["warning"] = &ChatTriggerContext::warning;
@@ -193,6 +194,7 @@ private:
     static Trigger* warning(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "warning"); }
     static Trigger* revive(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "revive"); }
     static Trigger* rti(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "rti"); }
+    static Trigger* mark(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "mark"); }
     static Trigger* invite(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "invite"); }
     static Trigger* lfg(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "lfg"); }
     static Trigger* cast(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "cast"); }

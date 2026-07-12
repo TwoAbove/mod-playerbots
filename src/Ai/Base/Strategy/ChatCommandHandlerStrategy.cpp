@@ -126,6 +126,7 @@ ChatCommandHandlerStrategy::ChatCommandHandlerStrategy(PlayerbotAI* botAI) : Pas
     supported.push_back("lfg");
     supported.push_back("spell");
     supported.push_back("rti");
+    supported.push_back("mark");
     supported.push_back("position");
     supported.push_back("summon");
     supported.push_back("who");

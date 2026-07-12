@@ -40,6 +40,7 @@
 #include "LootRollAction.h"
 #include "SetFocusHealTargetsAction.h"
 #include "MailAction.h"
+#include "MarkAction.h"
 #include "NamedObjectContext.h"
 #include "NewRpgAction.h"
 #include "PassLeadershipToMasterAction.h"
@@ -166,6 +167,7 @@ public:
         creators["invite"] = &ChatActionContext::invite;
         creators["spell"] = &ChatActionContext::spell;
         creators["rti"] = &ChatActionContext::rti;
+        creators["mark"] = &ChatActionContext::mark;
         creators["spirit healer"] = &ChatActionContext::spirit_healer;
         creators["position"] = &ChatActionContext::position;
         creators["tell target"] = &ChatActionContext::tell_target;
@@ -239,6 +241,7 @@ private:
     static Action* position(PlayerbotAI* botAI) { return new PositionAction(botAI); }
     static Action* spirit_healer(PlayerbotAI* botAI) { return new SpiritHealerAction(botAI); }
     static Action* rti(PlayerbotAI* botAI) { return new RtiAction(botAI); }
+    static Action* mark(PlayerbotAI* botAI) { return new MarkAction(botAI); }
     static Action* invite(PlayerbotAI* botAI) { return new InviteToGroupAction(botAI); }
     static Action* lfg(PlayerbotAI* botAI) { return new LfgAction(botAI); }
     static Action* spell(PlayerbotAI* botAI) { return new TellSpellAction(botAI); }
@@ -330,6 +333,8 @@ private:
     static Action* roll_action(PlayerbotAI* botAI) { return new RollAction(botAI); }
     static Action* wait_for_attack_time(PlayerbotAI* botAI) { return new SetWaitForAttackTimeAction(botAI); }
     static Action* focus_heal_targets(PlayerbotAI* botAI) { return new SetFocusHealTargetsAction(botAI); }
+    static Action* bg_attack(PlayerbotAI* botAI) { return new BgRoleAction(botAI, false); }
+    static Action* bg_defend(PlayerbotAI* botAI) { return new BgRoleAction(botAI, true); }
 };
 
 #endif
