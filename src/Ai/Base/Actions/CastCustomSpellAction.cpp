@@ -135,7 +135,7 @@ bool CastCustomSpellAction::Execute(Event event)
         ServerFacade::instance().SetFacingTo(bot, target);
         botAI->SetNextCheckDelay(sPlayerbotAIConfig.reactDelay);
 
-        msg << "cast " << text;
+        msg << "cast " << text << " on " << target->GetName();
         botAI->HandleCommand(CHAT_MSG_WHISPER, msg.str(), master);
         return true;
     }
@@ -158,6 +158,12 @@ bool CastCustomSpellAction::Execute(Event event)
     if (!bot->GetTrader() && !botAI->CanCastSpell(spell, target, true, itemTarget))
     {
         msg << "Cannot cast " << spellName.str();
+        if (target != bot)
+        {
+            float const dist = bot->GetDistance(target);
+            if (dist > sPlayerbotAIConfig.sightDistance)
+                msg << " — they are " << uint32(dist) << " yards away, far out of range";
+        }
         botAI->TellError(msg.str());
         return false;
     }
