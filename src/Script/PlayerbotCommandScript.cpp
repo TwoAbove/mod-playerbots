@@ -15,6 +15,7 @@
 
 #include "BattleGroundTactics.h"
 #include "Chat.h"
+#include "LlmProbe.h"
 #include "PerfMonitor.h"
 #include "PlayerbotMgr.h"
 #include "Personality/BotPersonality.h"
@@ -46,6 +47,9 @@ public:
             {"pmon", HandlePerfMonCommand, SEC_GAMEMASTER, Console::Yes},
             {"rndbot", HandleRandomPlayerbotCommand, SEC_GAMEMASTER, Console::Yes},
             {"who", HandlePersonalityWhoCommand, SEC_GAMEMASTER, Console::Yes},
+            {"llmtap", LlmProbe::HandleTap, SEC_GAMEMASTER, Console::Yes},
+            {"llmsteer", LlmProbe::HandleSteer, SEC_GAMEMASTER, Console::Yes},
+            {"llmsnap", LlmProbe::HandleSnap, SEC_GAMEMASTER, Console::Yes},
             {"debug", playerbotsDebugCommandTable},
             {"account", playerbotsAccountCommandTable},
         };
