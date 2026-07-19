@@ -90,10 +90,11 @@ struct EventMemory
 struct State
 {
     Facets baseline{};
-    std::array<float, AxisCount> adaptation{};
+    std::array<float, AxisCount> mood{};  // volatile outing-scale overlay; never persisted
     std::array<uint32, Matrix::Drift.size()> novelty{};
     uint64 lastDecay = 0;
     uint32 appliedGeneration = 0;
+    uint64 lastApplied = 0;
     EventMemory memory{};
 };
 
@@ -108,7 +109,6 @@ std::unordered_map<uint32, State> s_states;
 std::unordered_map<uint32, std::vector<PendingEvent>> s_pending;
 bool s_enabled = true;
 uint32 s_seed = 0;
-float s_dayHours = 24.0f;
 uint32 s_generation = 1;
 std::array<float, Matrix::Dials.size()> s_overrides{};
 
@@ -248,7 +248,6 @@ void LoadConfig()
 {
     bool enabled = sConfigMgr->GetOption<bool>("AiPlayerbot.Personality.Enable", true);
     uint32 seed = sConfigMgr->GetOption<uint32>("AiPlayerbot.Personality.Seed", 0);
-    float dayHours = sConfigMgr->GetOption<float>("AiPlayerbot.Personality.DayHours", 24.0f);
     std::array<float, Matrix::Dials.size()> overrides;
     for (std::size_t i = 0; i < overrides.size(); ++i)
     {
@@ -263,7 +262,6 @@ void LoadConfig()
     std::lock_guard<std::mutex> lock(s_mutex);
     s_enabled = enabled;
     s_seed = seed;
-    s_dayHours = std::isfinite(dayHours) ? std::max(dayHours, 0.01f) : 24.0f;
     s_overrides = overrides;
     ++s_generation;
 }
@@ -278,9 +276,9 @@ void Decay(State& state, uint64 now)
     if (now <= state.lastDecay)
         return;
 
-    double elapsedDays = double(now - state.lastDecay) / (double(s_dayHours) * 3600.0);
-    float factor = float(std::exp2(-elapsedDays / Matrix::DecayHalfLifeDays));
-    for (float& value : state.adaptation)
+    double elapsedMinutes = double(now - state.lastDecay) / 60.0;
+    float factor = float(std::exp2(-elapsedMinutes / Matrix::MoodHalfLifeMinutes));
+    for (float& value : state.mood)
         value *= factor;
     state.lastDecay = now;
 }
@@ -290,7 +288,7 @@ Facets Expressed(State& state)
     Decay(state, UnixTime());
     Facets result;
     for (std::size_t i = 0; i < AxisCount; ++i)
-        result.z[i] = ClampZ(state.baseline.z[i] + state.adaptation[i]);
+        result.z[i] = ClampZ(state.baseline.z[i] + state.mood[i]);
     return result;
 }
 
@@ -422,7 +420,7 @@ void AppendLedger(uint32 guid, char const* event, std::string detail, std::strin
         guid, uint32(UnixTime()), safeEvent, detail, deltas);
 }
 
-void Persist(uint32 guid, State const& state, bool includeBaseline)
+void PersistBaseline(uint32 guid, State const& state)
 {
     PlayerbotsDatabaseTransaction transaction = PlayerbotsDatabase.BeginTransaction();
     uint32 now = uint32(UnixTime());
@@ -430,16 +428,8 @@ void Persist(uint32 guid, State const& state, bool includeBaseline)
     {
         std::ostringstream sql;
         sql << std::setprecision(9);
-        if (includeBaseline)
-        {
-            sql << "REPLACE INTO playerbots_personality (guid,axis,baseline,adaptation,updated) VALUES ("
-                << guid << ',' << axis << ',' << state.baseline.z[axis] << ',' << state.adaptation[axis] << ',' << now << ')';
-        }
-        else
-        {
-            sql << "UPDATE playerbots_personality SET adaptation=" << state.adaptation[axis]
-                << ",updated=" << now << " WHERE guid=" << guid << " AND axis=" << axis;
-        }
+        sql << "REPLACE INTO playerbots_personality (guid,axis,baseline,updated) VALUES ("
+            << guid << ',' << axis << ',' << state.baseline.z[axis] << ',' << now << ')';
         transaction->Append(sql.str());
     }
     PlayerbotsDatabase.CommitTransaction(transaction);
@@ -451,13 +441,13 @@ void Initialize()
     LoadConfig();
 
     // Init and hydration are synchronous; gameplay ledger writes stay queued.
-    PlayerbotsDatabase.DirectExecute("CREATE TABLE IF NOT EXISTS playerbots_personality (guid INT UNSIGNED NOT NULL, axis TINYINT UNSIGNED NOT NULL, baseline FLOAT NOT NULL, adaptation FLOAT NOT NULL DEFAULT 0, updated INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (guid, axis)) ENGINE=InnoDB");
+    PlayerbotsDatabase.DirectExecute("CREATE TABLE IF NOT EXISTS playerbots_personality (guid INT UNSIGNED NOT NULL, axis TINYINT UNSIGNED NOT NULL, baseline FLOAT NOT NULL, updated INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (guid, axis)) ENGINE=InnoDB");
     PlayerbotsDatabase.DirectExecute("CREATE TABLE IF NOT EXISTS playerbots_personality_ledger (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, guid INT UNSIGNED NOT NULL, ts INT UNSIGNED NOT NULL, event VARCHAR(32) NOT NULL, detail VARCHAR(255) NOT NULL DEFAULT '', deltas VARCHAR(255) NOT NULL DEFAULT '', KEY guid_ts (guid, ts)) ENGINE=InnoDB");
 
     std::unordered_map<uint32, State> loaded;
     std::unordered_map<uint32, uint32> counts;
     if (QueryResult result = PlayerbotsDatabase.Query(
-        "SELECT guid,axis,baseline,adaptation,updated FROM playerbots_personality ORDER BY guid,axis"))
+        "SELECT guid,axis,baseline FROM playerbots_personality ORDER BY guid,axis"))
     {
         do
         {
@@ -468,8 +458,6 @@ void Initialize()
                 continue;
             State& state = loaded[guid];
             state.baseline.z[axis] = fields[2].Get<float>();
-            state.adaptation[axis] = fields[3].Get<float>();
-            state.lastDecay = std::max<uint64>(state.lastDecay, fields[4].Get<uint32>());
             ++counts[guid];
         } while (result->NextRow());
     }
@@ -539,7 +527,7 @@ void EnsureSeeded(Player* bot)
     }
     if (seeded)
     {
-        Persist(guid, snapshot, true);
+        PersistBaseline(guid, snapshot);
         AppendLedger(guid, "birth", bot->GetName(), "");
         std::lock_guard<std::mutex> lock(s_mutex);
         auto it = s_states.find(guid);
@@ -647,6 +635,7 @@ static void ApplyDials(Player* bot)
                 dials[i] = Matrix::Dials[i].neutral;
         }
         it->second.appliedGeneration = s_generation;
+        it->second.lastApplied = UnixTime();
     }
 
     for (std::size_t i = 0; i < dials.size(); ++i)
@@ -671,7 +660,6 @@ void OnLifeEvent(Player* bot, char const* event, char const* detail)
         return;
 
     uint32 guid = bot->GetGUID().GetCounter();
-    State snapshot;
     std::ostringstream deltaText;
     bool changed = false;
     {
@@ -696,23 +684,19 @@ void OnLifeEvent(Player* bot, char const* event, char const* detail)
                 Matrix::AxisCoefficient const& impulse = definition.impulses[i];
                 float delta = std::clamp(
                     impulse.weight * damping, -Matrix::EventImpulseCap, Matrix::EventImpulseCap);
-                state.adaptation[impulse.axis] = std::clamp(
-                    state.adaptation[impulse.axis] + delta, -Matrix::AdaptationCap, Matrix::AdaptationCap);
+                state.mood[impulse.axis] = std::clamp(
+                    state.mood[impulse.axis] + delta, -Matrix::MoodCap, Matrix::MoodCap);
                 if (i)
                     deltaText << ',';
                 deltaText << Axes[impulse.axis].key << ':' << std::showpos << std::setprecision(4)
                           << delta << std::noshowpos;
             }
-            snapshot = state;
             changed = true;
         }
     }
 
     if (changed)
-    {
-        Persist(guid, snapshot, false);
         ApplyDials(bot);
-    }
     AppendLedger(guid, event, detail ? detail : "", deltaText.str());
 }
 
@@ -738,6 +722,19 @@ void ProcessPending(Player* bot)
         auto state = s_states.find(bot->GetGUID().GetCounter());
         ensureSeeded = s_enabled && state == s_states.end();
         refresh = state != s_states.end() && state->second.appliedGeneration != s_generation;
+        if (!refresh && s_enabled && state != s_states.end() &&
+            UnixTime() - state->second.lastApplied >= 60)
+        {
+            // Mood decays between events; keep re-applying dials until it settles to baseline.
+            for (float value : state->second.mood)
+            {
+                if (std::fabs(value) > 0.001f)
+                {
+                    refresh = true;
+                    break;
+                }
+            }
+        }
         auto it = s_pending.find(bot->GetGUID().GetCounter());
         if (it != s_pending.end())
         {
@@ -756,32 +753,13 @@ void ProcessPending(Player* bot)
         {
             std::lock_guard<std::mutex> lock(s_mutex);
             auto const it = s_states.find(bot->GetGUID().GetCounter());
-            stillStale = it != s_states.end() && it->second.appliedGeneration != s_generation;
+            stillStale = it != s_states.end() &&
+                (it->second.appliedGeneration != s_generation ||
+                 UnixTime() - it->second.lastApplied >= 60);
         }
         if (stillStale)
             ApplyDials(bot);
     }
-}
-
-void Flush(Player* bot)
-{
-    if (!bot)
-        return;
-    ProcessPending(bot);
-
-    uint32 const guid = bot->GetGUID().GetCounter();
-
-    State snapshot;
-    {
-        std::lock_guard<std::mutex> lock(s_mutex);
-        auto it = s_states.find(guid);
-        if (it == s_states.end())
-            return;
-        Decay(it->second, UnixTime());
-        snapshot = it->second;
-        s_pending.erase(guid);
-    }
-    Persist(guid, snapshot, false);
 }
 
 bool HandleWho(ChatHandler* handler, std::string const& name)

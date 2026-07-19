@@ -377,7 +377,7 @@ public:
     void OnPlayerLogout(Player* player) override
     {
         if (player && GET_PLAYERBOT_AI(player))
-            BotPersonality::Flush(player);
+            BotPersonality::ProcessPending(player);
     }
 };
 

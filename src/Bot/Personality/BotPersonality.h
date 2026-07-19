@@ -24,7 +24,6 @@ void GrudgeSettled(std::uint32_t killerGuid, std::uint32_t victimLowGuid);
 float GrudgeWeight(std::uint32_t guid, std::uint32_t attackerLowGuid);
 float PvpBiographyShare(std::uint32_t guid);
 void ProcessPending(Player* bot);
-void Flush(Player* bot);
 bool HandleWho(ChatHandler* handler, std::string const& name);
 }
 

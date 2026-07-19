@@ -2361,9 +2361,6 @@ AiPlayerbot.Personality.Enable = 1
 # World seed mixed with character guid + stream id for all personality rolls.
 AiPlayerbot.Personality.Seed = 0
 
-# Real hours per psychological day (adaptation half-life: 30 such days).
-AiPlayerbot.Personality.DayHours = 24
-
 # Debug overrides; the commented values are the stock-equivalent neutrals. Config reload updates
 # active bots (DuelStart on the next strategy reset).
 #AiPlayerbot.PersonalityDial.Caution = 1.0       # 0.6 .. 1.8
